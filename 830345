@@ -1,0 +1,15 @@
+Daglig_data <- read_excel("C:/Users/nanna/OneDrive/Skrivebord/6. semester/Projekt/210215 Datagrundlag - Daglig forecast - projekt 1.xlsx", 
+                         sheet = "Data", skip = 1)
+
+############# 830345 NettoDK
+Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
+Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
+
+Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1))
+
+plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+plot.ts(diff(log(Salg_830345)), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+
+
+tsdiag(automodel_830345)
