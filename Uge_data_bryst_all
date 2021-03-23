@@ -8,8 +8,6 @@ library('forecast')
 Ugentlig_data <- read_excel("Data_uge.xlsx", sheet = "Data")
 
 
-#Ugenligt_data = read_excel("Ugenligt forecst - project 1", sheet = Data)
-
 names(Ugentlig_data)[1] <- "Forretningsomraade"
 names(Ugentlig_data)[2] <- "PrognosekundeNavn"
 names(Ugentlig_data)[3] <- "ProduktgruppeNavn"
@@ -24,8 +22,6 @@ names(Ugentlig_data)[11] <- "Month"
 names(Ugentlig_data)[12] <- "Year"
 names(Ugentlig_data)[13] <- "SalgKg"
 names(Ugentlig_data)[14] <- "xlFC_Total_kg"
-
-# Skal nok være sorteret efter navnet
 
 
 
@@ -45,7 +41,7 @@ ALDI_ugentlig<- aggregate(x = ALDI_ugentlig[c("SalgKg", "xlFC_Total_kg")],
 
 ALDI_ugentlig$uge_dato <- as.Date(paste(ALDI_ugentlig$Year, ALDI_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
 
-Salg <-  ts(ALDI_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+Salg <-  ts(ALDI_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) 
 
 plot.ts(Salg, type='l', main = "Brystprodukt ALDI", ylab = "Salg", xlab= "Uge")
 
@@ -55,10 +51,10 @@ acf(Salg) #Vi betragter ACF'en for Aldi dataen
 ts.plot(diff(Salg)) #Her er dataen plottet for 1. differens.
 
 acf(diff(Salg)) #Vi betragter ACF'en for 1. differensen
-#Dette kunne tyde på en AR(1)- model
+#Dette kunne tyde på en MA(1)- model
 
 pacf(diff(Salg)) #Dernæst betragtes PACF'en for 1. differensen
-# Dette kunne tyde på en MA(1)-model
+# Dette kunne tyde på en AR(1)-model
 
 #Et bud på en ARIMA model ville være ARIMA(1,1,1)
 
@@ -74,7 +70,7 @@ DS_ugentlig<- aggregate(x = DS_ugentlig[c("SalgKg", "xlFC_Total_kg")],
 
 DS_ugentlig$uge_dato <- as.Date(paste(DS_ugentlig$Year, DS_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
 
-Salg5 <-  ts(DS_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+Salg5 <-  ts(DS_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) 
 
 
 plot.ts(Salg5, type='l', main = "Brystprodukt Dansk Supermarked", ylab = "Salg", xlab= "Uge")
@@ -84,12 +80,13 @@ acf(Salg5) # Denne indikerer at vi skal tage 1. differensen
 
 ts.plot(diff(Salg5)) # Vi tager 1. differensen af dataen
 
-acf(diff(Salg5)) #Denne indikere en AR(1) model
+acf(diff(Salg5)) #Denne indikere en MA(1) model
 
-pacf(diff(Salg5)) #Denne indikerer en MA(0)
+pacf(diff(Salg5)) #Denne indikerer en AR(0)
 
 # Et bud på en ARIMA model kunne ud fra ovenstående være en ARIMA(1,1,0)
 
+auto.arima(Salg5)
 #Denne model kunne også indikerer at der er tale om sæson-udsvingninger med en sæson på S=52
 
 
