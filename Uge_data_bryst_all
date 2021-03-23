@@ -1,0 +1,457 @@
+library(readxl)
+library(dplyr)
+library('astsa')
+library('forecast')
+
+###############
+
+Ugentlig_data <- read_excel("Data_uge.xlsx", sheet = "Data")
+
+
+#Ugenligt_data = read_excel("Ugenligt forecst - project 1", sheet = Data)
+
+names(Ugentlig_data)[1] <- "Forretningsomraade"
+names(Ugentlig_data)[2] <- "PrognosekundeNavn"
+names(Ugentlig_data)[3] <- "ProduktgruppeNavn"
+names(Ugentlig_data)[4] <- "VaregruppeNavn"
+names(Ugentlig_data)[5] <- "Teknisk Klasse"
+names(Ugentlig_data)[6] <- "Koel_Frost"
+names(Ugentlig_data)[7] <- "Sortiment"
+names(Ugentlig_data)[8] <- "Varenr"
+names(Ugentlig_data)[9] <- "Varenavn"
+names(Ugentlig_data)[10] <- "Week"
+names(Ugentlig_data)[11] <- "Month"
+names(Ugentlig_data)[12] <- "Year"
+names(Ugentlig_data)[13] <- "SalgKg"
+names(Ugentlig_data)[14] <- "xlFC_Total_kg"
+
+# Skal nok være sorteret efter navnet
+
+
+
+# Følgende to linier sÃ¦tter uge 1 i december mÃ¥ned til uge 1 i januar i det følgende år..
+Ugentlig_data$Year[(Ugentlig_data$Week == 1) & (Ugentlig_data$Month == "dec")] <- Ugentlig_data$Year + 1
+Ugentlig_data$Month[(Ugentlig_data$Week == 1) & (Ugentlig_data$Month == "dec")] <- "jan"
+
+
+#### Aldi ####
+
+ALDI_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "ALDI Marked", VaregruppeNavn == "Brystprodukter")
+ALDI_ugentlig <-ALDI_ugentlig[order(ALDI_ugentlig$PrognosekundeNavn,ALDI_ugentlig$Year,ALDI_ugentlig$Week),]
+
+ALDI_ugentlig<- aggregate(x = ALDI_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                          by = ALDI_ugentlig[c("Week","Year")],
+                          sum)
+
+ALDI_ugentlig$uge_dato <- as.Date(paste(ALDI_ugentlig$Year, ALDI_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg <-  ts(ALDI_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+#### Gør figurene sorte ####
+par(bg="black",fg="white",col.axis = "white", col.lab = "white") #Lav figurerne sorte
+
+### Plots
+
+plot.ts(Salg, type='l', main = "Brystprodukt ALDI", ylab = "Salg", xlab= "Uge")
+
+acf(Salg)
+acf2(diff(Salg))
+
+ts.plot(diff(Salg))
+
+acf(diff(Salg))
+
+pacf(diff(Salg))
+
+
+auto.arima(Salg)
+#Suggests ARIMA(0,1,1)
+
+
+sarima(Salg, p=1, d=1, q=1)
+
+sarima.for(Salg, p=0,d=1, q=1, n.ahead = 10)
+
+sarima.for(Salg, p=0, d=1, q=1, P=0, D=1, Q=1, S=9, n.ahead = 10)
+
+
+
+autoforecast = forecast(Salg, h=10)
+plot(autoforecast)
+
+
+#### Coop Danmark ####
+
+Coop_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Coop Danmark", VaregruppeNavn == "Brystprodukter")
+Coop_ugentlig <- Coop_ugentlig[order(Coop_ugentlig$PrognosekundeNavn, Coop_ugentlig$Year,Coop_ugentlig$Week),]
+
+Coop_ugentlig<- aggregate(x = Coop_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                          by = Coop_ugentlig[c("Week","Year")],
+                          sum)
+
+Coop_ugentlig$uge_dato <- as.Date(paste(Coop_ugentlig$Year, Coop_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg2 <-  ts(Coop_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg2, type='l', main = "Brystprodukt Coop", ylab = "Salg", xlab= "Uge")
+
+
+acf(Salg2)
+
+ts.plot(diff(Salg2))
+
+acf(diff(Salg2))
+
+pacf(diff(Salg2))
+
+
+auto.arima(Salg2)
+#Suggests ARIMA(0,1,0)
+
+
+sarima(Salg, p=0, d=1, q=0)
+
+sarima.for(Salg, p=0,d=1, q=0, n.ahead = 10)
+
+
+autoforecast = forecast(Salg2, h=10)
+plot(autoforecast)
+
+
+#### Lidl Danmark ####
+
+Lidl_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Lidl Danmark", VaregruppeNavn == "Brystprodukter")
+Lidl_ugentlig <- Lidl_ugentlig[order(Lidl_ugentlig$PrognosekundeNavn, Lidl_ugentlig$Year,Lidl_ugentlig$Week),]
+
+Lidl_ugentlig<- aggregate(x = Lidl_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                          by = Lidl_ugentlig[c("Week","Year")],
+                          sum)
+
+Lidl_ugentlig$uge_dato <- as.Date(paste(Lidl_ugentlig$Year, Lidl_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg3 <-  ts(Lidl_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg3, type='l', main = "Brystprodukt Lidl", ylab = "Salg", xlab= "Uge")
+
+
+acf(Salg3)
+pacf(Salg3)
+
+ts.plot(diff(Salg3))
+
+acf(diff(Salg3))
+
+pacf(diff(Salg3))
+
+
+auto.arima(Salg3)
+#Suggests ARIMA(0,1,1)
+
+
+sarima(Salg, p=0, d=1, q=1)
+
+sarima.for(Salg, p=0,d=1, q=1, n.ahead = 10)
+
+
+autoforecast = forecast(Salg3, h=10)
+plot(autoforecast)
+
+
+
+#### Netto Prognoser ####
+
+Netto_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Netto Prognoser", VaregruppeNavn == "Brystprodukter")
+Netto_ugentlig <- Netto_ugentlig[order(Netto_ugentlig$PrognosekundeNavn, Netto_ugentlig$Year,Netto_ugentlig$Week),]
+
+Netto_ugentlig<- aggregate(x = Netto_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                          by = Netto_ugentlig[c("Week","Year")],
+                          sum)
+
+Netto_ugentlig$uge_dato <- as.Date(paste(Netto_ugentlig$Year, Netto_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg4 <-  ts(Netto_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg4, type='l', main = "Brystprodukt Netto", ylab = "Salg", xlab= "Uge")
+
+
+acf(Salg4)
+
+ts.plot(diff(Salg4))
+
+acf(diff(Salg4))
+
+pacf(diff(Salg4))
+
+
+auto.arima(Salg4)
+#Suggests ARIMA(2,1,0)
+
+
+sarima(Salg, p=2, d=1, q=0)
+
+sarima.for(Salg, p=2,d=1, q=0, n.ahead = 10)
+
+
+autoforecast = forecast(Salg4, h=10)
+plot(autoforecast)
+
+
+
+#### Dansk Supermarked ####
+DS_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Dansk Supermarked", VaregruppeNavn == "Brystprodukter")
+DS_ugentlig <- DS_ugentlig[order(DS_ugentlig$PrognosekundeNavn, DS_ugentlig$Year, DS_ugentlig$Week),]
+
+DS_ugentlig<- aggregate(x = DS_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                           by = DS_ugentlig[c("Week","Year")],
+                           sum)
+
+DS_ugentlig$uge_dato <- as.Date(paste(DS_ugentlig$Year, DS_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg5 <-  ts(DS_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg5, type='l', main = "Brystprodukt Dansk Supermarked", ylab = "Salg", xlab= "Uge")
+
+
+acf(Salg5)
+pacf(Salg5)
+
+ts.plot(diff(Salg5))
+
+acf(diff(Salg5))
+
+pacf(diff(Salg5))
+
+
+auto.arima(Salg5)
+#Suggests ARIMA(1,0,0)(0,1,0)_52
+
+
+sarima(Salg5, p=1, d=0, q=0)
+
+sarima.for(Salg, p=1,d=0, q=0, P=1, D=0, Q=0, S=52, n.ahead = 10)
+
+
+autoforecast = forecast(Salg5, h=10)
+plot(autoforecast)
+
+
+
+
+#### De 5 Gaarde ####
+
+De_5_Gaarde_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "De 5 Gaarde", VaregruppeNavn == "Brystprodukter")
+De_5_Gaarde_ugentlig <- De_5_Gaarde_ugentlig[order(De_5_Gaarde_ugentlig$PrognosekundeNavn, De_5_Gaarde_ugentlig$Year,De_5_Gaarde_ugentlig$Week),]
+
+De_5_Gaarde_ugentlig<- aggregate(x = De_5_Gaarde_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                           by = De_5_Gaarde_ugentlig[c("Week","Year")],
+                           sum)
+
+De_5_Gaarde_ugentlig$uge_dato <- as.Date(paste(De_5_Gaarde_ugentlig$Year, De_5_Gaarde_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg6 <-  ts(De_5_Gaarde_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg6, type='l', main = "Brystprodukt De 5 Gaarde", ylab = "Salg", xlab= "Uge")
+
+
+
+auto.arima(Salg6)
+#Suggests ARIMA(0,0,2)
+
+acf2(Salg6)
+
+
+sarima(Salg, p=0, d=0, q=2)
+
+sarima.for(Salg, p=0,d=0, q=2, n.ahead = 10)
+
+
+autoforecast = forecast(Salg6, h=10)
+plot(autoforecast)
+
+
+
+#### Danmeat/Fleggaard ####
+Danmeat_Fleggaard_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Danmeat/Fleggaard", VaregruppeNavn == "Brystprodukter")
+Danmeat_Fleggaard_ugentlig <- Danmeat_Fleggaard_ugentlig[order(Danmeat_Fleggaard_ugentlig$PrognosekundeNavn, Danmeat_Fleggaard_ugentlig$Year,Danmeat_Fleggaard_ugentlig$Week),]
+
+Danmeat_Fleggaard<- aggregate(x = Danmeat_Fleggaard_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                                 by = Danmeat_Fleggaard_ugentlig[c("Week","Year")],
+                                 sum)
+
+Danmeat_Fleggaard_ugentlig$uge_dato <- as.Date(paste(Danmeat_Fleggaard_ugentlig$Year, Danmeat_Fleggaard_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg7 <-  ts(Danmeat_Fleggaard_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg7, type='l', main = "Brystprodukt Danmeat/Fleggaard", ylab = "Salg", xlab= "Uge")
+
+
+
+auto.arima(Salg7)
+#Suggests ARIMA(0,1,1)
+
+acf(Salg7)
+
+
+ts.plot(diff(Salg7))
+
+sarima(Salg, p=0, d=1, q=1)
+
+sarima.for(Salg, p=0,d=1, q=1, n.ahead = 10)
+
+
+autoforecast = forecast(Salg7, h=10)
+plot(autoforecast)
+
+
+
+#### Ingen prognoser ####
+IP_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Ingen prognoser", VaregruppeNavn == "Brystprodukter")
+IP_ugentlig <-IP_ugentlig[order(IP_ugentlig$PrognosekundeNavn,IP_ugentlig$Year,IP_ugentlig$Week),]
+
+IP_ugentlig<- aggregate(x = IP_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                        by = IP_ugentlig[c("Week","Year")],
+                        sum)
+
+IP_ugentlig$uge_dato <- as.Date(paste(IP_ugentlig$Year,IP_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg8 <-  ts(IP_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+plot.ts(Salg8, type='l', main = "Brystprodukt Ingen prognoser", ylab = "Salg IP", xlab= "Uge")
+
+auto.arima(Salg8)
+
+
+
+auto.arima(Salg8)
+#Suggests ARIMA(0,0,0)
+
+acf(Salg8)
+
+
+ts.plot(diff(Salg8))
+
+sarima(Salg, p=0, d=0, q=0)
+
+sarima.for(Salg, p=0,d=0, q=0, n.ahead = 10)
+
+
+autoforecast = forecast(Salg8, h=10)
+plot(autoforecast)
+
+
+
+#### Intervare ####
+Intervare_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Intervare", VaregruppeNavn == "Brystprodukter")
+Intervare_ugentlig <-Intervare_ugentlig[order(Intervare_ugentlig$PrognosekundeNavn,Intervare_ugentlig$Year,Intervare_ugentlig$Week),]
+
+Intervare_ugentlig<- aggregate(x = Intervare_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                               by = Intervare_ugentlig[c("Week","Year")],
+                               sum)
+
+Intervare_ugentlig$uge_dato <- as.Date(paste(Intervare_ugentlig$Year,Intervare_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg9 <-  ts(Intervare_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+plot.ts(Salg9, type='l', main = "Brystprodukt Intervare", ylab = "Salg Intervare", xlab= "Uge")
+
+auto.arima(Salg9)
+#Suggests ARIMA(0,1,1)
+
+acf(Salg9)
+
+
+ts.plot(diff(Salg9))
+
+sarima(Salg, p=0, d=1, q=1)
+
+sarima.for(Salg, p=0,d=1, q=1, n.ahead = 10)
+
+
+autoforecast = forecast(Salg9, h=10)
+plot(autoforecast)
+
+
+
+
+#### Reitan ####
+Reitan_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Reitan", VaregruppeNavn == "Brystprodukter")
+Reitan_ugentlig <- Reitan_ugentlig[order(Reitan_ugentlig$PrognosekundeNavn, Reitan_ugentlig$Year, Reitan_ugentlig$Week),]
+
+Reitan<- aggregate(x = Reitan_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                      by = Reitan_ugentlig[c("Week","Year")],
+                      sum)
+
+Reitan_ugentlig$uge_dato <- as.Date(paste(Reitan_ugentlig$Year, Reitan_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg10 <-  ts(Reitan_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+
+plot.ts(Salg10, type='l', main = "Brystprodukt Reitan", ylab = "Salg", xlab= "Uge")
+
+
+
+auto.arima(Salg10)
+#Suggests ARIMA(0,1,1)
+
+acf(Salg10)
+
+
+ts.plot(diff(Salg10))
+
+sarima(Salg, p=0, d=1, q=1)
+
+sarima.for(Salg, p=0,d=1, q=1, n.ahead = 10)
+
+
+autoforecast = forecast(Salg10, h=10)
+plot(autoforecast)
+
+
+
+#### Supergros ####
+Supergros_ugentlig <- Ugentlig_data %>% filter(PrognosekundeNavn == "Supergros", VaregruppeNavn == "Brystprodukter")
+Supergros_ugentlig <-Supergros_ugentlig[order(Supergros_ugentlig$PrognosekundeNavn,Supergros_ugentlig$Year,Supergros_ugentlig$Week),]
+
+Supergros_ugentlig<- aggregate(x = Supergros_ugentlig[c("SalgKg", "xlFC_Total_kg")],
+                               by = Supergros_ugentlig[c("Week","Year")],
+                               sum)
+
+Supergros_ugentlig$uge_dato <- as.Date(paste(Supergros_ugentlig$Year,Supergros_ugentlig$Week, 1, sep="-"), "%Y-%U-%u")
+
+Salg11 <-  ts(Supergros_ugentlig$SalgKg, frequency = 52, start = c(2019, 1)) # 2nd Quarter of 1959
+
+plot.ts(Salg11, type='l', main = "Brystprodukt Supergros", ylab = "Salg Supergros", xlab= "Uge")
+
+auto.arima(SalgSupergros)
+
+
+ts.plot(diff(Salg11))
+
+acf(Salg11)
+acf(diff(Salg11))
+
+auto.arima(Salg11)
+# ARIMA(0,1,1)
+
+sarima(Salg11, p=0, d=1, q=1)
+
+sarima.for(Salg11, p=0, d=1, q=1, n.ahead = 10)
+
+
+autoforecast = forecast(Salg11, h=10)
+plot(autoforecast)
+
+
+
+
+
+
+
+
