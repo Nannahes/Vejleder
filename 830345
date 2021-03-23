@@ -9,7 +9,35 @@ Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1))
 
 plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
 plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
-plot.ts(diff(log(Salg_830345)), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
 
+#Tjek ACF og PACF
+acf2(as.vector(log(Salg_830345))) #Cutter af ved lag 2. 
 
+#Lav arima model
+automodel_830345 <- auto.arima(log(Salg_830345),seasonal = TRUE); automodel_830345 #Antyder der ikke er sæson i dataen for varenummeret.
+
+#Analyser residualer 
 tsdiag(automodel_830345)
+#Residualerne ser ikke fine ud. Der er kun én residual uden signifikant p-værdi. 
+qqnorm(resid(automodel_830345)); qqline(resid(automodel_830345))
+#Residualerne ser ikke normalfordelte ud.
+
+#Prøvede også med sarima(), men dette gav et andet resultat? Burde dette ikke give det samme som linje 20/22?
+sarima(log(Salg_830345), p=3, d=1, q=5)
+
+#Undersøg outliers for modellen
+detectAO(automodel_830345); detectIO(automodel_830345);
+#Ingen additive outliers, flere inovative outliers. Dog er mange af vores outliers NA. Hvad kan vi gøre ved dette?  
+
+#Laver ny arima
+automodel2_830345=arimax(Salg_830345,order=c(2,0,2),io=c(4,39,88,106,130,158,179,403,443,459,462,522,536,543,655,726,739,742,752)); automodel2_830345
+
+plot(window(rstandard(automodel2_830345),start=c(2019,1)),
+     ylab='Standardized Residuals') #Den ser meget sjov ud
+acf(as.vector(window(rstandard(automodel2_830345),start=c(2019,1))), na.action = na.pass,
+    lag.max=36) #Suggests dependence in the time series 
+hist(window(rstandard(automodel2_830345),start=c(2019,1)),
+     xlab='Standardized Residuals')
+qqnorm(window(rstandard(automodel2_830345),start=c(2019,1)))
+qqline(window(rstandard(automodel2_830345),start=c(2019,1)))
+#Det ser heller ikke normalfordelt. 
