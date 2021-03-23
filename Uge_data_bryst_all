@@ -231,10 +231,9 @@ auto.arima(Salg5)
 #Suggests ARIMA(1,0,0)(0,1,0)_52
 
 
-sarima(Salg5, p=1, d=0, q=0)
+sarima(Salg5, p=1, d=0, q=0, P=1, D=0, Q=0, S=52)
 
-sarima.for(Salg, p=1,d=0, q=0, P=1, D=0, Q=0, S=52, n.ahead = 10)
-
+sarima.for(Salg, p=1,d=0, q=0, P=0, D=1, Q=0, S=52, n.ahead = 10)
 
 autoforecast = forecast(Salg5, h=10)
 plot(autoforecast)
