@@ -1,0 +1,57 @@
+library("imputeTS")
+library('astsa')
+library('readxl')
+library('dplyr')
+library('forecast')
+library('TSA')
+
+Daglig_data <- read_excel("C:/Users/nanna/OneDrive/Skrivebord/6. semester/Projekt/210215 Datagrundlag - Daglig forecast - projekt 1.xlsx", 
+                         sheet = "Data", skip = 1)
+
+################################################################### 830345 NettoDK
+Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
+Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
+
+#Salgvektorer
+Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_830345 <- na.interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
+
+#Plot salg 
+plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato") # Figur 1
+plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato") # Figur 2
+
+#ACF og PACF
+acf2(as.vector(log(Salg_830345)),max.lag=50) #Figur 3
+
+#Undersøger 7. differens
+Salg_830345_7 <- diff(log(Salg_830345),7);
+plot(Salg_830345_7) #Figur 4
+acf2(as.vector(Salg_830345_7),max.lag=50) #Figur 5
+#Ligner p=2,q=2. Vi ved ikke, hvordan vi skal aflæse P og Q. D er 1. 
+#Vi har i det vi havde sendt sagt p=2 og q=3, men det var fordi vi så på det forkerte acf plot.
+
+
+#Find AIC når Q=0
+for (i in 0:7){
+  print(arima(log(Salg_830345), order = c(2,0,2),seasonal = list(order=c(i,1,0),period=7))$aic)
+} #Lavest hvis P=7
+
+#Find AIC når Q=1
+for (i in 0:7){
+  print(arima(log(Salg_830345), order = c(2,0,2),seasonal = list(order=c(i,1,1),period=7))$aic)
+} #Lavest hvis P=4
+
+#Find AIC når Q=2
+for (i in 0:7){
+  print(arima(log(Salg_830345), order = c(2,0,2),seasonal = list(order=c(i,1,2),period=7))$aic)
+} #Lavest hvis P=4
+
+#Find AIC når Q=3
+for (i in 0:7){
+  print(arima(log(Salg_830345), order = c(2,0,2),seasonal = list(order=c(i,1,3),period=7))$aic)
+} #Lavest hvis P=3
+
+#Indtil nu er den bedste P=3, Q=3
+sarima(log(Salg_830345), p=2,d=0,q=2,P=3,D=1,Q=3,S=7) #Tilsvarende figur 6
+
+
