@@ -55,3 +55,27 @@ for (i in 0:7){
 sarima(log(Salg_830345), p=2,d=0,q=2,P=3,D=1,Q=3,S=7) #Tilsvarende figur 6
 
 
+
+#################################################################### 855131 Lidl
+Daglig_855131 <- Daglig_data %>% filter(Kunde == "Lidl",Vare=="855131")
+Daglig_855131 <- Daglig_855131[order(as.Date(Daglig_855131$Dato, format="%Y/%m/%d")),]
+#Salgvektorer
+Salg_855131 <-  ts(Daglig_855131$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_855131 <- na.interpolation(Salg_855131) #Erstatter NA med gennemsnit af værdien før og efter.
+#Plot salg 
+plot.ts(Salg_855131, type='l', main = "855131 Lidl", ylab = "Salg", xlab= "Dato")
+plot.ts(log(Salg_855131), type='l', main = "855131 Lidl", ylab = "Salg", xlab= "Dato")
+plot.ts(diff(log(Salg_855131)), type='l', main = "855131 Lidl", ylab = "Salg", xlab= "Dato")
+#Prognose
+Prog_ejkamp_855131 <-ts(Daglig_855131$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
+Prog_kamp_855131 <- ts(Daglig_855131$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
+Prog_kamp_855131 <- na_replace(Prog_kamp_855131,0)
+Prog_855131 <- Prog_ejkamp_855131 + Prog_kamp_855131;
+plot.ts(Prog_855131, type='l', main = "855131 Lidl", ylab = "Salg", xlab= "Dato")
+#Plot prognose og salg i samme plot 
+ts.855131 <- cbind(Prog_855131, Salg_855131)
+plot.ts(ts.855131, plot.type = "single", col = c("orange","lightblue"), 
+        ylab = "Salg og prognose", main="855131 Lidl")
+#Undersøg acf og pacf for salg
+par(bg = 'black', fg = 'white',  col.lab="white",  col.main="white", col.axis = 'white', col="orange")
+acf2(as.vector(diff(log(Salg_855131))), max.lag = 30) 
