@@ -79,3 +79,43 @@ plot.ts(ts.855131, plot.type = "single", col = c("orange","lightblue"),
 #Undersøg acf og pacf for salg
 par(bg = 'black', fg = 'white',  col.lab="white",  col.main="white", col.axis = 'white', col="orange")
 acf2(as.vector(diff(log(Salg_855131))), max.lag = 30) 
+
+
+#### 852087 Dansk Supermarked ####
+Daglig_852087 <- Daglig_data %>% filter(Kunde == "DS",Vare=="852087")
+Daglig_852087 <- Daglig_852087[order(as.Date(Daglig_852087$Dato, format="%Y/%m/%d")),]
+
+#Salgvektorer
+Salg_852087 <-  ts(Daglig_852087$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_852087 <- na_interpolation(Salg_852087) #Erstatter NA med gennemsnit af værdien før og efter.
+
+#Plot salg 
+plot.ts(Salg_852087, type='l', main = "852087 DS", ylab = "Salg", xlab= "Dato")
+plot.ts(log(Salg_852087), type='l', main = "852087 DS", ylab = "Salg", xlab= "Dato")
+plot.ts(diff(log(Salg_852087)), type='l', main = "852087 DS", ylab = "Salg", xlab= "Dato")
+
+#Prognose
+Prog_ejkamp_852087 <-ts(Daglig_852087$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
+Prog_kamp_852087 <- ts(Daglig_852087$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
+Prog_kamp_852087 <- na_replace(Prog_kamp_852087,0)
+Prog_852087 <- Prog_ejkamp_852087 + Prog_kamp_852087;
+plot.ts(Prog_852087, type='l', main = "852087 DS", ylab = "Salg", xlab= "Dato")
+
+#Plot prognose og salg i samme plot 
+ts.852087 <- cbind(Prog_852087, Salg_852087)
+plot.ts(ts.852087, plot.type = "single", col = c("orange","lightblue"), 
+        ylab = "Salg og prognose", main="852087 DS")
+
+#Undersøg acf og pacf for salg
+par(bg = 'black', fg = 'white',  col.lab="white",  col.main="white", col.axis = 'white', col="orange")
+acf2(as.vector(diff(log(Salg_852087))), max.lag = 30) #Muligvis sæson på 6
+
+
+acf(Salg_852087, lag.max=200)
+pacf(Salg_852087, lag.max=200)
+
+acf(log(Salg_852087))
+pacf(log(Salg_852087))
+
+acf(diff(log(Salg_852087)))
+pacf(diff(log(Salg_852087)))
