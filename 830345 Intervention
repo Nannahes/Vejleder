@@ -229,6 +229,12 @@ for (i in (2:length(k10))) {
   mt10[i]=delta*mt10[i-1]
 }
 (sum((k10-mt10)^2))/length(k10) #MSE
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k10, mt10)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(269, 1, legend=c("Observed effect", "m_t"),
+       col=c("black", "green"), lty=1:2, cex=1)
 
 ### Det observeres at modellen m_t=omega*P_t+ delta*m_t ikke er en god estimation###
 
@@ -240,7 +246,7 @@ lm$coefficients[2] #Hældningskoefficienten vil blive brugt som den bedste hæld
 mt11 = c(k10[1],rep(0,length(k10)-1))
 for (i in (2:length(k10))) {
   mt10[i]=mt10[i-1]+lm$coefficients[2]
- }
+}
 mt10
 (sum((k10-mt10)^2))/length(k10) #MSE
 
@@ -291,7 +297,7 @@ plot(kampagne_effekt, plot.type = "single", col = c("black","green"),
 legend(353, 1.5, legend=c("Observed effect", "m_t"),
        col=c("green", "black"), lty=1:2, cex=1)
 p11 = c(rep(0,348),mt11,rep(0,length(Salg_830345)-348-7));p11
-abline(lm, col="red")
+
 
 ##########
 n = log(Salg_830345)-p6-p7-p8-p9-p10-p11 # Den naturlige process
