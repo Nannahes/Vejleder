@@ -1,0 +1,307 @@
+library("imputeTS")
+library('astsa')
+library('readxl')
+library('dplyr')
+library('forecast')
+library('TSA')
+
+Daglig_data <- read_excel("C:/Users/Bruger/Dropbox/Min computer (DESKTOP-958HVSH)/Desktop/210215 Datagrundlag - Daglig forecast - projekt 1(uændret).xlsx", 
+                          sheet = "Data", skip = 1)
+
+################################################################### 830345 NettoDK
+Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
+Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
+
+#Salgvektorer
+Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_830345 <- na_interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
+
+#Dato vektor
+dato.830345 <- Daglig_830345$Dato; dato.830345
+
+#Plot salg 
+plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+
+#Prognose
+Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
+Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
+Prog_kamp_830345 <- na_replace(Prog_kamp_830345,0)
+Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;
+plot.ts(Prog_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+
+#Plot prognose og salg i samme plot 
+ts.830345 <- cbind(Prog_830345, Salg_830345)
+plot.ts(ts.830345, plot.type = "single", col = c("green","black"), 
+        ylab = "Salg og prognose", main="830345 NettoDK")
+
+Prog_830345 #Mange nul prognoser indtil indeks 391. Derfor forkortes tidsperioden.
+
+### Forkort salg og kampagne vektorer ###
+Salg_830345 <-  ts(Daglig_830345$SalgKolli[391:762], frequency = 365, start = c(2020, 26)); 
+Salg_830345 <- na_interpolation(Salg_830345)
+plot(log(Salg_830345))
+Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp[391:762], frequency = 365, start = c(2020, 26)) #Alm. prognose
+Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp[391:762], frequency = 365, start = c(2020, 26)) #Prognose kamp.
+Prog_kamp_830345 <- na_replace(Prog_kamp_830345,0)
+Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;
+plot.ts(Prog_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+
+ts.830345<- cbind(Prog_830345, Salg_830345)
+plot.ts(ts.830345, plot.type = "single", col = c("orange","lightblue"), 
+        ylab = "Salg og prognose", main="830345 NettoDK")
+
+
+automodel <- auto.arima(log(Salg_830345),seasonal = FALSE) #Bestem ARIMA model for log(Salg_830345)
+automodel
+autoforecast = forecast(automodel, h=21,level = c(95));autoforecast  # Forecast udfra ARIMA modellen
+plot(autoforecast, ylab = "log(sales)",xlab = "Time")                # Plot af forecast
+plot(autoforecast, col= 'black',xlim=c(2020.8,2021.15), ylab = "log(sales)",xlab = "Time")
+
+### INTERVENTION ANALYSIS ###
+# 1. kampagne
+dato.830345[391:762]
+dato.830345[391:762][13]; dato.830345[391:762][19] # Første kampagne strækker sig over disse datoer
+automodel.6 <- auto.arima(log(Salg_830345)[1:12])#,seasonal = FALSE) #Bestem ARIMA for pre-interventionsperioden
+automodel.6
+f6 = forecast(automodel.6,h=7);f6 # Forecast værdier for kampagneperioden baseret på pre-interventionsperioden
+plot(f6,col="black",type='l',ylab = "log(sales)",xlab = "Time")
+k6=log(Salg_830345)[13:19]-f6$mean;k6 # Bestem effekten af kampagnen som realiseret salg - forecasted salg i perioden
+plot(k6, type="l", xlab= "Time", ylab="Actual sales - forecasted sales") # plot effekten
+
+### Estimer coefficienter for k6 ###
+k6[1] # omega coefficienten, den øjeblikkelige effekt.
+
+ek6 = c(k6[1],rep(0,length(k6)-1)) #Vektor der i loopet, bliver fyldt ud med estimerede værdier for effekten
+v.delta=seq(0.8,0,length=100);v.delta # En følge af delta værdier
+MSE = rep(0,100) # En tom vektor der i loopet bliver udfyldt af mean square errors for modeller med forskellig delta
+for (j in (1:100)) {
+  for (i in (2:length(k6))) {
+    ek6[i]=v.delta[j]*ek6[i-1]
+  }
+  MSE[j]=sum((k6-ek6)^2)/length(k6)
+}
+#Find det delta der giver lavest MSE
+which(MSE==min(MSE))
+MSE[26]
+delta=v.delta[26];delta
+#Konstruer mt med den optimale delta
+mt = c(k6[1],rep(0,length(k6)-1))
+for (i in (2:length(k6))) {
+  mt[i]=delta*mt[i-1]
+}
+p6 = c(rep(0,12),mt,rep(0,length(Salg_830345)-12-7));p6 # Konstruer en funktion der er 0 udenfor kampagnen og m_t under kampagnen
+
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k6, mt)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(16.5, 1.5, legend=c("Observed effect", "m_t"),
+       col=c("black", "green"), lty=1:2, cex=1.2)
+
+### Denne process gentages for de andre kampagner ###
+
+# 2. kampagne
+dato.830345[391:762][69]; dato.830345[391:762][75]
+automodel.7 <- auto.arima(log(Salg_830345)[1:68]-p6[1:68])#,seasonal = FALSE)
+automodel.7
+f7 = forecast(automodel.7,h=7);f7 
+plot(f7,col="black",type='l')
+k7=log(Salg_830345)[69:75]-f7$mean
+plot(k7)
+### Estimer coefficienter for k7 ###
+k7[1]
+
+ek7 = c(k7[1],rep(0,length(k7)-1))
+v.delta=seq(0.8,0,length=100);v.delta
+MSE = rep(0,100)
+for (j in (1:100)) {
+  for (i in (2:length(k7))) {
+    ek7[i]=v.delta[j]*ek7[i-1]
+  }
+  MSE[j]=sum((k7-ek7)^2)/length(k7)
+}
+#Find det delta der giver lavest MSE
+which(MSE==min(MSE))
+MSE[13]
+delta=v.delta[13];delta
+
+#Konstruer mt med den optimale delta
+mt7 = c(k7[1],rep(0,length(k7)-1))
+for (i in (2:length(k7))) {
+  mt7[i]=delta*mt7[i-1]
+}
+
+p7 = c(rep(0,68),mt7,rep(0,length(Salg_830345)-68-7));p7
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k7, mt7)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(73, 1, legend=c("Observed effect", "m_t"),
+       col=c("black", "green"), lty=1:2, cex=1.2)
+
+# 3. kampagne
+dato.830345[391:762][132]; dato.830345[391:762][138]
+automodel.8 <- auto.arima(log(Salg_830345)[1:131]-p6[1:131]-p7[1:131])#,seasonal = FALSE)
+automodel.8
+f8 = forecast(automodel.8,h=7);f8
+plot(f8,col="black",type='l')
+k8=log(Salg_830345)[132:138]-f8$mean
+plot(k8)
+### Estimer coefficienter for k8 ###
+k8[1]
+
+ek8 = c(k8[1],rep(0,length(k8)-1))
+v.delta=seq(0.8,0,length=100);v.delta
+MSE = rep(0,100)
+for (j in (1:100)) {
+  for (i in (2:length(k8))) {
+    ek8[i]=v.delta[j]*ek8[i-1]
+  }
+  MSE[j]=sum((k8-ek8)^2)/length(k8)
+}
+#Find det delta der giver lavest MSE
+which(MSE==min(MSE))
+MSE[33]
+delta=v.delta[33];delta
+
+#Konstruer mt med den optimale delta
+mt8 = c(k8[1],rep(0,length(k8)-1))
+for (i in (2:length(k8))) {
+  mt8[i]=delta*mt7[i-1]
+}
+
+p8 = c(rep(0,131),mt8,rep(0,length(Salg_830345)-131-7));p8
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k8, mt8)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(136, 1.1, legend=c("Observed effect", "m_t"),
+       col=c("black", "green"), lty=1:2, cex=1.2)
+
+# 4. kampagne
+dato.830345[391:762][146]; dato.830345[391:762][159]
+automodel.9 <- auto.arima(log(Salg_830345)[1:145]-p6[1:145]-p7[1:145]-p8[1:145],seasonal = FALSE)
+automodel.9
+f9 = forecast(automodel.9,h=14);f9
+plot(f9,col="black",type='l')
+k9=log(Salg_830345)[146:159]-f9$mean
+plot(k9)
+### Estimer coefficienter for k9 ###
+
+mt9=c(rep(mean(k9),length(k9)));mt9 #Ud fra plottet af k9 ligner et gennemsnit den bedste model
+p9=c(rep(0,145),mt9,rep(0,length(Salg_830345)-145-14));p9
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k9, mt9)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(156, 0.95, legend=c("Observed effect", "m_t"),
+       col=c("black", "green"), lty=1:2, cex=0.8)
+
+# 5. kampagne
+dato.830345[391:762][265]; dato.830345[391:762][271]
+automodel.10 <- auto.arima(log(Salg_830345)[1:264]-p6[1:264]-p7[1:264]-p8[1:264]-p9[1:264],seasonal = FALSE)
+automodel.10
+f10 = forecast(automodel.10,h=7);f10
+plot(f10,col="black",type='l')
+k10=log(Salg_830345)[265:271]-f10$mean
+plot(k10)
+### Estimer coefficienter for k7 ###
+k10[1]
+
+ek10 = c(k10[1],rep(0,length(k10)-1))
+v.delta=seq(1,0,length=100);v.delta
+MSE = rep(0,100)
+for (j in (1:100)) {
+  for (i in (2:length(k10))) {
+    ek10[i]=v.delta[j]*ek10[i-1]
+  }
+  MSE[j]=sum((k10-ek10)^2)/length(k10)
+}
+#Find det delta der giver lavest MSE
+which(MSE==min(MSE))
+MSE[37]
+delta=v.delta[37];delta
+
+#Konstruer mt med det optimale delta
+mt10 = c(k10[1],rep(0,length(k10)-1))
+for (i in (2:length(k10))) {
+  mt10[i]=delta*mt10[i-1]
+}
+(sum((k10-mt10)^2))/length(k10) #MSE
+
+### Det observeres at modellen m_t=omega*P_t+ delta*m_t ikke er en god estimation###
+
+#Den lineære model
+library(stats)
+#Best linear regression of k11
+lm = lm(k10~c(265:271));summary(lm)
+lm$coefficients[2] #Hældningskoefficienten vil blive brugt som den bedste hældning for m_t
+mt11 = c(k10[1],rep(0,length(k10)-1))
+for (i in (2:length(k10))) {
+  mt10[i]=mt10[i-1]+lm$coefficients[2]
+ }
+mt10
+(sum((k10-mt10)^2))/length(k10) #MSE
+
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k10, mt10)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(269, 1, legend=c("Observed effect", "m_t"),
+       col=c("black", "green"), lty=1:2, cex=1)
+
+p10 = c(rep(0,264),mt10,rep(0,length(Salg_830345)-264-7));p10
+
+# 6. kampagne
+dato.830345[391:762][349]; dato.830345[391:762][355]
+automodel.11 <- auto.arima(log(Salg_830345)[1:348]-p6[1:348]-p7[1:348]-p8[1:348]-p9[1:348]-p10[1:348],seasonal = FALSE)
+automodel.11
+f11 = forecast(automodel.11,h=7);f11
+plot(f11,col="black",type='l')
+k11=log(Salg_830345)[349:355]-f11$mean
+plot(k11)
+### Estimer coefficienter for k7 ###
+k11[1]
+
+ek11 = c(k11[1],rep(0,length(k11)-1))
+v.delta=seq(1,0,length=100);v.delta
+MSE = rep(0,100)
+for (j in (1:100)) {
+  for (i in (2:length(k11))) {
+    ek11[i]=v.delta[j]*ek11[i-1]
+  }
+  MSE[j]=sum((k11-ek11)^2)/length(k11)
+}
+#Find det delta der giver lavest MSE
+which(MSE==min(MSE))
+MSE[10]
+delta=v.delta[10];delta
+
+#Konstruer mt med den optimale delta
+mt11 = c(k11[1],rep(0,length(k11)-1))
+for (i in (2:length(k11))) {
+  mt11[i]=delta*mt11[i-1]
+}
+
+#Plot den reelle kampagne effekt mod effekten med estimerede koefficienter
+kampagne_effekt <- cbind(k11, mt11)
+plot(kampagne_effekt, plot.type = "single", col = c("black","green"), 
+     xlab= "Time", ylab="Actual sales - forecasted sales")
+legend(353, 1.5, legend=c("Observed effect", "m_t"),
+       col=c("green", "black"), lty=1:2, cex=1)
+p11 = c(rep(0,348),mt11,rep(0,length(Salg_830345)-348-7));p11
+abline(lm, col="red")
+
+##########
+n = log(Salg_830345)-p6-p7-p8-p9-p10-p11 # Den naturlige process
+plot.ts(n,type="l")
+
+automodel.n <-auto.arima(n, seasonal = FALSE) # Bestem ARIMA for den naturlige process
+automodel.n
+f.n =forecast(automodel.n,h=21,level = c(95));f.n # Forecast ud fra den naturlige process
+plot(f.n,xlab= "Time", ylab="log(sales)")
+plot(f.n,xlim=c(2020.8,2021.15),xlab= "Time", ylab="log(sales)")
+
+exp(f.n$mean) # Tag eksponential funktion for at tranformere log(salg) tilbage til salg i antal kartonner 
+##########
