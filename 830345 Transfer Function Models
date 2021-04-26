@@ -60,7 +60,7 @@ plot(salg.fil, ylab="Sale", xlab="Time", main="Prewhitened Realised Sales")
 ###
 
 #Determining the final model
-h = ts.intersect(Salg_830345, SA1 = stats::lag(Salg_830345,1), PR1 = stats::lag(prog.d,-1))
+h = ts.intersect(Salg_830345, SA1 = stats::lag(Salg_830345,1), PR1 = stats::lag(prog.d,0))
 plot(h)
 (u = lm(h[,1]~h[,2:3], na.action=NULL))
 acf(resid(u))
