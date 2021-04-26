@@ -81,3 +81,50 @@ arx$fit #Coefficients to the model
 opar <- par(mfrow = c(2,1), mar = c(4,4,2,1), cex.axis=1.2, cex.lab=1.2) # set up the graphics
 plot(forecast(Salg_830345 + resid(arx$fit), h=50), main="") # Dette er er bare et forecast af pred, som er defineret højere oppe.
 plot(forecast(Salg_830345, h=50), main="Uden Transfer Function")
+
+
+
+
+
+#### 830345 Netto igen ####
+
+auto.arima(Prog_830345)
+nm1=arima(Prog_830345,order=c(4,1,2))
+xprew=nm1$residuals[2:762]  # transformed x
+
+
+#Determine ARMA model for input, x.
+nm1=arima(Prog_830345,order=c(4,1,2))
+print(nm1)  # Prints the ARIMA coefficients for x
+print(summary(nm1))
+f1=c(-nm1$coef[1:1])  # Creates a filter to transform y
+print(f1)#Use convolution method for AR model, recursive method for MA model.
+#Note that this is different from the gas-furnace model.
+yf = stats::filter(Salg_830345,f1,method=c("recursive"),sides=1)
+print(yf)
+yprew=yf[2:762]  # transformed (i.e., prewhitened) y
+print(yprew)
+xprew=nm1$residuals[2:762]  # transformed x
+print(xprew)#Check to see that filtering produces the same values of the residuals.
+xf = stats::filter(Prog_830345,f1,method=c("recursive"),sides=1)
+print(xf)
+
+
+CCF =ccf(yprew,xprew, ylab="CCF", main="Cross-correlations after prewhitening")  # computes the cross-correlations
+print(sd(yprew))
+print(sd(xprew))
+vk=(sd(yprew)/sd(xprew))*CCF$acf  # impulse response functionprint(vk)
+
+
+
+m1=tfm1(Salg_830345,Prog_830345,orderX=c(1,0,2),orderN=c(4,1,2))
+print(m1)
+print(summary(m1))
+print(names(m1))  # check contents of output
+print(m1$estimate)  # model coefficients
+print(m1$varcoef)  # variances of model coefficients
+print(m1$sigma2)  # residual variance
+print(acf(m1$residuals))  # acf of the residuals
+print(ccf(m1$residuals,x, ylab="CCF"))  # cross-correlation between input series and residuals
+print(ccf(m1$residuals,xprew,ylab="CCF"))  # cross-correlation between prewhitened input and residuals
+
