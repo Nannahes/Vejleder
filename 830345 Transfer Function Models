@@ -88,12 +88,8 @@ plot(forecast(Salg_830345, h=50), main="Uden Transfer Function")
 
 #### 830345 Netto igen ####
 
-auto.arima(Prog_830345)
-nm1=arima(Prog_830345,order=c(4,1,2))
-xprew=nm1$residuals[2:762]  # transformed x
-
-
 #Determine ARMA model for input, x.
+auto.arima(Prog_830345)
 nm1=arima(Prog_830345,order=c(4,1,2))
 print(nm1)  # Prints the ARIMA coefficients for x
 print(summary(nm1))
