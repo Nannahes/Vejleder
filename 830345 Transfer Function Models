@@ -1,0 +1,83 @@
+##### Normal load of the data #### #For Transfer models go to line 33
+######################## 830345 NettoDK
+Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
+Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
+
+#Salgvektorer
+Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_830345 <- na_interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
+
+#Plot salg 
+plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Sale", xlab= "Time")
+plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Log Sale", xlab= "Time")
+
+
+#Prognose
+Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
+Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
+Prog_kamp_830345 <- na_replace(Prog_kamp_830345,0)
+Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;
+plot.ts(Prog_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+
+
+#Plot prognose og salg i samme plot 
+ts.830345 <- cbind(Prog_830345, Salg_830345)
+plot.ts(ts.830345, plot.type = "single", col = c("orange","lightblue"), 
+        ylab = "Salg og prognose", main="830345 NettoDK")
+
+
+
+
+
+
+####### Transfer Function Models ######
+#### 830345 Netto ####
+par(cex.axis=1.2, cex.lab=1.2) #Extra graphic
+
+opar <- par(mfrow = c(2,1), mar = c(4,4,2,1), cex.axis=1.2, cex.lab=1.2) # set up the graphics
+plot(Salg_830345, ylab="Sale", xlab="Time", main="Realised Sale 830345") #Plot of the realised sale
+plot(Prog_830345, ylab="Sale", xlab="Time", main="Campaign Forecast 830345") #Plot of the campaign forecast
+
+prog.d = resid(lm(Prog_830345~time(Prog_830345), na.action=NULL)) # detrended campaign forecast
+a <- acf2(as.vector(prog.d))
+auto.arima(prog.d)
+
+#prewhiten the campaing forecast
+fit = arima(prog.d, order=c(2,0,1))
+ar1 = as.numeric(coef(fit));ar1  
+prog.pw = resid(fit)
+
+plot(prog.pw, ylab="", xlab="", main="")
+
+salg.fil = stats::filter(Salg_830345, filter=c(1, - ar1), sides=1) #prewhiten the realised sales
+
+ccf(prog.pw, salg.fil, ylab="CCF", na.action=na.omit, panel.first=grid(), main="CCF 830345") #The CCF
+
+#Making a plot of the two prewhitened time series
+opar <- par(mfrow = c(2,1), mar = c(4,4,2,1), cex.axis=1.2, cex.lab=1.2) # set up the graphics
+plot(prog.pw, ylab="Sale", xlab="Time", main="Prewhitened Campaign Forecast")
+plot(salg.fil, ylab="Sale", xlab="Time", main="Prewhitened Realised Sales")
+###
+
+#Determining the final model
+h = ts.intersect(Salg_830345, SA1 = stats::lag(Salg_830345,1), PR1 = stats::lag(prog.d,-1))
+plot(h)
+(u = lm(h[,1]~h[,2:3], na.action=NULL))
+acf(resid(u))
+pacf(resid(u))
+auto.arima(resid(u))
+
+arx = sarima(h[,1], 3, 0, 4, xreg=h[,2:3]) # final model
+
+
+pred = Salg_830345 + resid(arx$fit) # 1-step-ahead predictions
+ts.plot(pred, Salg_830345, col=c('gray90',1), lwd=c(7,1))
+
+
+arx$fit #Coefficients to the model
+
+
+########
+opar <- par(mfrow = c(2,1), mar = c(4,4,2,1), cex.axis=1.2, cex.lab=1.2) # set up the graphics
+plot(forecast(Salg_830345 + resid(arx$fit), h=50), main="") # Dette er er bare et forecast af pred, som er defineret højere oppe.
+plot(forecast(Salg_830345, h=50), main="Uden Transfer Function")
