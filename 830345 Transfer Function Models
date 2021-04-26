@@ -109,7 +109,8 @@ print(xf)
 CCF =ccf(yprew,xprew, ylab="CCF", main="Cross-correlations after prewhitening")  # computes the cross-correlations
 print(sd(yprew))
 print(sd(xprew))
-vk=(sd(yprew)/sd(xprew))*CCF$acf  # impulse response functionprint(vk)
+vk=(sd(yprew)/sd(xprew))*CCF$acf  # impulse response function
+print(vk)
 
 
 
