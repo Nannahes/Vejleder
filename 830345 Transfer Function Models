@@ -36,13 +36,13 @@ par(cex.axis=1.2, cex.lab=1.2) #Extra graphic
 
 opar <- par(mfrow = c(2,1), mar = c(4,4,2,1), cex.axis=1.2, cex.lab=1.2) # set up the graphics
 plot(Salg_830345, ylab="Sale", xlab="Time", main="Realised Sale 830345") #Plot of the realised sale
-plot(Prog_830345, ylab="Sale", xlab="Time", main="Campaign Forecast 830345") #Plot of the campaign forecast
+plot(Prog_830345, ylab="Sale", xlab="Time", main="Campaign Forecast 830345") #Plot of the  forecast
 
-prog.d = resid(lm(Prog_830345~time(Prog_830345), na.action=NULL)) # detrended campaign forecast
+prog.d = resid(lm(Prog_830345~time(Prog_830345), na.action=NULL)) # detrended  forecast
 a <- acf2(as.vector(prog.d))
 auto.arima(prog.d)
 
-#prewhiten the campaing forecast
+#prewhiten the forecast
 fit = arima(prog.d, order=c(2,0,1))
 mod = as.numeric(coef(fit));mod  
 prog.pw = resid(fit)
@@ -55,7 +55,7 @@ ccf(prog.pw, salg.fil, ylab="CCF", na.action=na.omit, panel.first=grid(), main="
 
 #Making a plot of the two prewhitened time series
 opar <- par(mfrow = c(2,1), mar = c(4,4,2,1), cex.axis=1.2, cex.lab=1.2) # set up the graphics
-plot(prog.pw, ylab="Sale", xlab="Time", main="Prewhitened Campaign Forecast")
+plot(prog.pw, ylab="Sale", xlab="Time", main="Prewhitened Forecast")
 plot(salg.fil, ylab="Sale", xlab="Time", main="Prewhitened Realised Sales")
 ###
 
