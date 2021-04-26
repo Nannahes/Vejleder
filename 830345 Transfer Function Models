@@ -44,12 +44,12 @@ auto.arima(prog.d)
 
 #prewhiten the campaing forecast
 fit = arima(prog.d, order=c(2,0,1))
-ar1 = as.numeric(coef(fit));ar1  
+mod = as.numeric(coef(fit));mod  
 prog.pw = resid(fit)
 
 plot(prog.pw, ylab="", xlab="", main="")
 
-salg.fil = stats::filter(Salg_830345, filter=c(1, - ar1), sides=1) #prewhiten the realised sales
+salg.fil = stats::filter(Salg_830345, filter=c(1, - mod), sides=1) #prewhiten the realised sales
 
 ccf(prog.pw, salg.fil, ylab="CCF", na.action=na.omit, panel.first=grid(), main="CCF 830345") #The CCF
 
