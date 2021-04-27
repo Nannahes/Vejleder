@@ -1,3 +1,11 @@
+library("imputeTS")
+library('astsa')
+library('readxl')
+library('dplyr')
+library('forecast')
+library('TSA')
+library('MTS')
+
 ##### Normal load of the data #### #For Transfer models go to line 33
 ######################## 830345 NettoDK
 Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
