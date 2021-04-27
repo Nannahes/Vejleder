@@ -103,7 +103,7 @@ print(nm1)  # Prints the ARIMA coefficients for x
 print(summary(nm1))
 f1=c(-nm1$coef[1:1])  # Creates a filter to transform y
 print(f1)#Use convolution method for AR model, recursive method for MA model.
-#Note that this is different from the gas-furnace model.
+
 yf = stats::filter(Salg_830345,f1,method=c("recursive"),sides=1)
 print(yf)
 yprew=yf[2:762]  # transformed (i.e., prewhitened) y
