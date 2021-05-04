@@ -1,0 +1,103 @@
+library(forecast)
+library(readxl)
+library("TSA")
+library("MTS")
+library(dplyr)
+library("lubridate")
+
+Ugentlig_data <- read_excel("C:/Users/nanna/OneDrive/Skrivebord/6. semester/Projekt/Data/Ugentlig_forecast.xlsx", 
+                            sheet = "Data")
+
+names(Ugentlig_data)[1] <- "Forretningsomraade"
+names(Ugentlig_data)[2]<- "PrognosekundeNavn"
+names(Ugentlig_data)[3] <- "ProduktgruppeNavn"
+names(Ugentlig_data)[4] <- "VaregruppeNavn"
+names(Ugentlig_data)[5] <- "Teknisk_Klasse"
+names(Ugentlig_data)[6] <- "Koel_Frost"
+names(Ugentlig_data)[7] <- "Sortiment"
+names(Ugentlig_data)[8] <- "Varenr"
+names(Ugentlig_data)[9] <- "Varenavn"
+names(Ugentlig_data)[10] <- "Week"
+names(Ugentlig_data)[11] <- "Month"
+names(Ugentlig_data)[12] <- "Year"
+names(Ugentlig_data)[13] <- "SalgKg"
+names(Ugentlig_data)[14] <- "xlFC_Total_kg"
+
+#### Coop Danmark Brystprodukt ####
+Coop.bryst <- Ugentlig_data %>% filter(PrognosekundeNavn == "Coop Danmark", 
+                                          VaregruppeNavn == "Brystprodukter",
+                                          Koel_Frost=="Køl")
+Coop.bryst <- Coop.bryst[order(Coop.bryst$PrognosekundeNavn, Coop.bryst$Year,Coop.bryst$Week),]
+
+Coop.bryst<- aggregate(x = Coop.bryst[c("SalgKg", "xlFC_Total_kg")],
+                          by = Coop.bryst[c("Week","Year")],sum)
+
+Coop.bryst$uge_dato <- as.Date(paste(Coop.bryst$Year, Coop.bryst$Week, 1, sep="-"), "%Y-%U-%u")
+
+#Salgvektorer
+Salg.coop.bryst <- ts(Coop.bryst$SalgKg, frequency = 52, start = c(2019, 1)); 
+Salg.coop.bryst <- na.interpolation(Salg.coop.bryst) #Erstatter NA med gennemsnit af værdien før og efter.
+lsalg.coop.bryst <- log(Salg.coop.bryst)
+
+#Plot salg 
+plot.ts(Salg.coop.bryst, type='l', main = "Coop Brystprodukt", ylab = "Salg", xlab= "Dato")
+plot.ts(lsalg.coop.bryst, type='l', main = "Coop Brystprodukt", ylab = "log(Salg)", xlab= "Dato")
+
+#Prognose
+Prog.coop.bryst <-ts(Coop.bryst$xlFC_Total_kg, frequency = 365, start = c(2019, 1)) #Alm. prognose
+plot.ts(log(Prog.coop.bryst), type='l', main = "", ylab = "", xlab= "Dato")
+
+#################################### INTERVENTION
+# Først bestemmes en arima for pre interventionsperioden, og om man skal tage log.
+#Definer perioderne
+pre.intervention.coop.bryst = Salg.coop.bryst[1:57]
+lpre.intervention.coop.bryst = log(pre.intervention.coop.bryst)
+
+#Tjek plots. Kan ikke se man nødvendigvis skulle få noget ud af log.
+plot(pre.intervention.coop.bryst, type="l")
+plot(lpre.intervention.coop.bryst, type="l")
+
+#Arimaerne og deres residualer. Her ser log bedre ud. Denne vælges.
+pre.model.coop.bryst = auto.arima(pre.intervention.coop.bryst); pre.model.coop.bryst
+lpre.model.coop.bryst = auto.arima(lpre.intervention.coop.bryst,ic="bic"); lpre.model.coop.bryst
+tsdiag(pre.model.coop.bryst)
+tsdiag(lpre.model.coop.bryst)
+#Log ser bedst ud. Med ARIMA (1,0,1)
+
+#Lav step funktion
+step.coop = c(rep(0,57),rep(1,53))
+
+#Anvend arimax
+mod.coop.bryst<-arimax(lsalg.coop.bryst, #output tidsserien
+                 order=c(2,0,0), # auto.arima for præinterventions perioden
+                 xtransf = data.frame(step.coop), #Vores stepfunktion
+                 transfer = list(c(1,0)), 
+                 )
+mod.coop.bryst
+tsdiag(mod.coop.bryst) #Fine residualer
+
+#Navngiv de relevante coefficienter i mod.coop
+step.ar1<- mod.coop$coef[4]
+step.ma1<- mod.coop$coef[5]
+
+#Step.funktion hvor 12 fremtidige værdier er inkluderet
+step.pred.coop = c(rep(0,57),rep(1,65)) 
+
+tf<-stats::filter(step.pred.coop, 
+                  filter=c(step.ar1), #Hvis flere ar coefficienter skal de opskrives i aftagende rækkefølge
+                  method='recursive',
+                  side=1)*c(step.ma1) #Samme som med ar. 
+
+#Forecast
+forecast.arima.coop.bryst<-arima(lsalg.coop.bryst,order=c(2,0,0),xreg=tf[1:(length(tf)-12)])
+forecast.arima.coop.bryst
+
+pred.coop.bryst=predict(forecast.arima.coop.bryst,n.ahead = 12, newxreg=tf[111:length(tf)]); pred.coop.bryst
+plot(ts(c(Salg.coop.bryst,exp(pred.coop.bryst$pred)),frequency = 52, start = c(2019, 1)),type="l",
+     main = "Brystproduct Coop forecast", ylab="Salg", xlab="Tid", ylim=c(5000,105000))
+abline(v=2021.1,col="red")
+
+plot(ts(c(Salg.coop.bryst,exp(pred.coop.bryst$pred)),frequency = 52, start = c(2019, 1)),type="l",
+     main = "Brystprodukt Coop forecast", ylab="Salg", xlab="Tid",
+     xlim=c(2020.5,2021.3), ylim=c(5000,65000))
+abline(v=2021.1,col="red")
