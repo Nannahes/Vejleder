@@ -95,9 +95,9 @@ forecast.arima.coop.bryst
 pred.coop.bryst=predict(forecast.arima.coop.bryst,n.ahead = 12, newxreg=tf[111:length(tf)]); pred.coop.bryst
 plot(ts(c(Salg.coop.bryst,exp(pred.coop.bryst$pred)),frequency = 52, start = c(2019, 1)),type="l",
      main = "Brystproduct Coop forecast", ylab="Salg", xlab="Tid", ylim=c(5000,105000))
-abline(v=2021.1,col="red")
+abline(v=2021.096,col="red")
 
 plot(ts(c(Salg.coop.bryst,exp(pred.coop.bryst$pred)),frequency = 52, start = c(2019, 1)),type="l",
      main = "Brystprodukt Coop forecast", ylab="Salg", xlab="Tid",
      xlim=c(2020.5,2021.3), ylim=c(5000,65000))
-abline(v=2021.1,col="red")
+abline(v=2021.096,col="red")
