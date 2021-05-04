@@ -101,3 +101,8 @@ plot(ts(c(Salg.coop.bryst,exp(pred.coop.bryst$pred)),frequency = 52, start = c(2
      main = "Brystprodukt Coop forecast", ylab="Salg", xlab="Tid",
      xlim=c(2020.5,2021.3), ylim=c(5000,65000))
 abline(v=2021.096,col="red")
+
+# v i abline er bestemt ved at bruge denne kode til at finde x-værdien for den sidste observation i log(Salg_supergros)
+install.packages("lubridate")
+library("lubridate")
+as.numeric(time(log(Salg_supergros)))
