@@ -50,7 +50,7 @@ plot.ts(log(Prog.coop.bryst), type='l', main = "", ylab = "", xlab= "Dato")
 #################################### INTERVENTION
 # Først bestemmes en arima for pre interventionsperioden, og om man skal tage log.
 #Definer perioderne
-pre.intervention.coop.bryst = Salg.coop.bryst[1:57]
+pre.intervention.coop.bryst = Salg.coop.bryst[1:56]
 lpre.intervention.coop.bryst = log(pre.intervention.coop.bryst)
 
 #Tjek plots. Kan ikke se man nødvendigvis skulle få noget ud af log.
@@ -62,14 +62,14 @@ pre.model.coop.bryst = auto.arima(pre.intervention.coop.bryst); pre.model.coop.b
 lpre.model.coop.bryst = auto.arima(lpre.intervention.coop.bryst,ic="bic"); lpre.model.coop.bryst
 tsdiag(pre.model.coop.bryst)
 tsdiag(lpre.model.coop.bryst)
-#Log ser bedst ud. Med ARIMA (1,0,0)
+#Log ser bedst ud. Med ARIMA (0,0,1)
 
 #Lav step funktion
-step.coop = c(rep(0,57),rep(1,53))
+step.coop = c(rep(0,56),rep(1,54))
 
 #Anvend arimax
 mod.coop.bryst<-arimax(lsalg.coop.bryst, #output tidsserien
-                       order=c(1,0,0), # auto.arima for præinterventions perioden
+                       order=c(0,0,1), # auto.arima for præinterventions perioden
                        xtransf = data.frame(step.coop), #Vores stepfunktion
                        transfer = list(c(1,0)), 
 )
@@ -77,11 +77,11 @@ mod.coop.bryst
 tsdiag(mod.coop.bryst) #Fine residualer
 
 #Navngiv de relevante coefficienter i mod.coop
-step.ar1<- mod.coop$coef[4]
-step.ma1<- mod.coop$coef[5]
+step.ar1<- mod.coop.bryst$coef[3]
+step.ma1<- mod.coop.bryst$coef[4]
 
 #Step.funktion hvor 12 fremtidige værdier er inkluderet
-step.pred.coop = c(rep(0,57),rep(1,65)) 
+step.pred.coop = c(rep(0,56),rep(1,66)) 
 
 tf<-stats::filter(step.pred.coop, 
                   filter=c(step.ar1), #Hvis flere ar coefficienter skal de opskrives i aftagende rækkefølge
@@ -89,7 +89,7 @@ tf<-stats::filter(step.pred.coop,
                   side=1)*c(step.ma1) #Samme som med ar. 
 
 #Forecast
-forecast.arima.coop.bryst<-arima(lsalg.coop.bryst,order=c(1,0,0),xreg=tf[1:(length(tf)-12)])
+forecast.arima.coop.bryst<-arima(lsalg.coop.bryst,order=c(0,0,1),xreg=tf[1:(length(tf)-12)])
 forecast.arima.coop.bryst
 
 pred.coop.bryst=predict(forecast.arima.coop.bryst,n.ahead = 12, newxreg=tf[111:length(tf)]); pred.coop.bryst
@@ -105,4 +105,4 @@ abline(v=2021.096,col="red")
 # v i abline er bestemt ved at bruge denne kode til at finde x-værdien for den sidste observation i log(Salg_supergros)
 install.packages("lubridate")
 library("lubridate")
-as.numeric(time(log(Salg_supergros)))
+as.numeric(time(log(Salg.coop.bryst)))
