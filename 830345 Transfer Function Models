@@ -83,3 +83,73 @@ plot(myforecasts.830345.actual) # Plot af tidsrækken med forecastede værdier o
 plot(myforecasts.830345.actual,xlim=c(2020.8,2021.15))
 
 
+#######################################################################
+                        PREWHITENING
+#######################################################################
+Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
+Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
+#Salgvektorer
+Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_830345 <- na.interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
+#Prognose
+Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
+Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
+Prog_kamp_830345 <- na_interpolation(Prog_kamp_830345)
+Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;
+#Log prognose
+lProg_830345 <- log(Prog_830345)
+repinf = which(lProg_830345==-Inf);repinf
+lProg_830345 <- replace(lProg_830345,repinf, c(rep(NaN, length(repinf))))
+lProg_830345 <- na_interpolation(lProg_830345)
+
+############ testsæt ################################
+#Time series 
+salg.830345_ts <- ts(log(Salg_830345), frequency = 365, start =c(2019,1))
+prog.830345_ts <- ts(lProg_830345, frequency = 365, start =c(2019,1))
+
+# split data til train og test sæt. Vi fjerner de første, da prognosen er dårlig.
+salg.830345_train <- window(salg.830345_ts,start=c(2020,25), end=c(2020,365))
+salg.830345_test <- window(salg.830345_ts, start=c(2021,0))
+
+prog.830345_train <- window(prog.830345_ts,start=c(2020,25), end=c(2020,365))
+prog.830345_test <- window(prog.830345_ts, start=c(2021,0))
+########################################################
+
+########## Tjek CCF ####################################
+ccf2(as.vector(salg.830345_train),as.vector(prog.830345_train))
+#Der er korolationer, så prewhiten. 
+
+#################### Prewhitening #######################
+#Først skal input-tidsrækken mean korregeres:
+new.prog.830345 = prog.830345_train - mean(prog.830345_train)
+
+#Herefter bestemmes en arima for input-tidsrækken:
+input.model.830345 = auto.arima(new.prog.830345, trace=TRUE);
+input.model.830345 #(2,0,0)
+#Modeltjek
+tsdiag(input.model.830345)
+checkresiduals(input.model.830345)
+
+##########################  Prewhiten  ##################
+#Gem relevante coefficienter fra modellen 
+ar1.830345 =-input.model.830345$coef[1]; ar1.830345
+ar2.830345 =-input.model.830345$coef[2]; ar2.830345
+
+#Man prewhitener ved at filtrerer - først prewhitnes output serien
+pw.salg.830345 = stats::filter(salg.830345_train,filter = c(1,ar1.830345,ar2.830345),
+                               #method = "recursive",
+                               sides=1)
+pw.salg.830345 = pw.salg.830345[3:341] #pre-whitened salg
+
+#Prewhitend prognose burde være residualerne af modellen, så
+pw.prog.830345 =input.model.830345$residuals; pw.prog.830345
+#Som burde være det samme, som hvis man filtrerer
+filt.prog.830345 = stats::filter(new.prog.830345,filter=c(1,ar1.830345,ar2.830345),
+                                 #method=c("recursive"),
+                                 sides=1)
+filt.prog.830345 = filt.prog.830345[3:341] #De første inputs er NA
+#Jeps, man får det samme ved at filtrerer, som når man tager residualerne. 
+
+############ Tjek prewhitened CCF
+ccf2(as.vector(pw.salg.830345),as.vector(filt.prog.830345))
+#Denne CCF er en del pænere, men stadig ideel
