@@ -34,7 +34,7 @@ dato.830345 <- Daglig_830345$Dato; dato.830345
 #Prognose
 Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
 Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
-Prog_kamp_830345 <- na_interpolation(Prog_kamp_830345)
+Prog_kamp_830345 <- na_replace(Prog_kamp_830345,0)
 Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345; Prog_830345
 lProg_830345 <- log(Prog_830345)
 repinf = which(lProg_830345==-Inf);repinf
