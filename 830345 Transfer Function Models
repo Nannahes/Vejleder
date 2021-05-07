@@ -84,30 +84,14 @@ plot(myforecasts.830345.actual,xlim=c(2020.8,2021.15))
 
 
 #######################################################################
-                        PREWHITENING
+                        #PREWHITENING
 #######################################################################
-Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
-Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
-#Salgvektorer
-Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
-Salg_830345 <- na.interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
-#Prognose
-Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
-Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
-Prog_kamp_830345 <- na_interpolation(Prog_kamp_830345)
-Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;
-#Log prognose
-lProg_830345 <- log(Prog_830345)
-repinf = which(lProg_830345==-Inf);repinf
-lProg_830345 <- replace(lProg_830345,repinf, c(rep(NaN, length(repinf))))
-lProg_830345 <- na_interpolation(lProg_830345)
-
 ############ testsæt ################################
 #Time series 
 salg.830345_ts <- ts(log(Salg_830345), frequency = 365, start =c(2019,1))
 prog.830345_ts <- ts(lProg_830345, frequency = 365, start =c(2019,1))
 
-# split data til train og test sæt. Vi fjerner de første, da prognosen er dårlig.
+#Split data til train og test sæt. Vi fjerner de første, da prognosen er dårlig.
 salg.830345_train <- window(salg.830345_ts,start=c(2020,25), end=c(2020,365))
 salg.830345_test <- window(salg.830345_ts, start=c(2021,0))
 
@@ -153,3 +137,8 @@ filt.prog.830345 = filt.prog.830345[3:341] #De første inputs er NA
 ############ Tjek prewhitened CCF
 ccf2(as.vector(pw.salg.830345),as.vector(filt.prog.830345))
 #Denne CCF er en del pænere, men stadig ideel
+
+###############################################################
+                    #FORECASTING
+###############################################################
+#HVORDAN KOMMER VI VIDERE MED AT FORECASE UD FRA DEN PREWHITENEDE DATA?
