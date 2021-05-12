@@ -19,14 +19,15 @@ Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%
 
 #Salgvektorer
 Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
-Salg_830345 <- na.interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
+Salg_830345 <- na_interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
 
 lSalg_830345 <- log(Salg_830345)
-lSalg_830345 <- na.interpolation(lSalg_830345)
+lSalg_830345 <- na_interpolation(lSalg_830345)
 
 #Plot salg 
 plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
 plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+acf2(as.vector(log(Salg_830345)))
 plot.ts(diff(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
 #Dato vektor
 dato.830345 <- Daglig_830345$Dato; dato.830345
@@ -35,7 +36,7 @@ dato.830345 <- Daglig_830345$Dato; dato.830345
 Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
 Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
 Prog_kamp_830345 <- na_replace(Prog_kamp_830345,0)
-Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345; Prog_830345
+Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;Prog_830345 #Det sidste 0 forecast i starten af tidsrækken forekommer ved indeks 390
 lProg_830345 <- log(Prog_830345)
 repinf = which(lProg_830345==-Inf);repinf
 lProg_830345 <- replace(lProg_830345,repinf, c(rep(NaN, length(repinf))))
@@ -61,42 +62,16 @@ legend("topleft", legend=c("Realised Sale", "Forecasted Sale"),
 salg.830345_ts <- ts(lSalg_830345[391:762], frequency = 365, start =c(2020,26))
 prog.830345_ts <- ts(lProg_830345[391:762], frequency = 365, start =c(2020,26))
 
-# Bestem Transfer funktions model 
-arimax.830345 = auto.arima(salg.830345_ts, # specify main trend
-                           xreg = prog.830345_ts, # specify exogenous variables here
-                           #ic="aicc",
-                           trace = FALSE, # do not show fitted models  
-                           seasonal= FALSE, # do not allow a SARIMAX model
-                           stepwise= FALSE,
-                           approximation=FALSE
-)
-arimax.830345
-tsdiag(arimax.830345)
-checkresiduals(arimax.830345)
-
-### Forecast fra transfer funktion modellen ###
-myforecasts.830345.actual <- forecast::forecast(arimax.830345, xreg=salg.830345_ts[(length(salg.830345_ts)-20):length(salg.830345_ts)],level =95);myforecasts.830345.actual
-length(myforecasts.830345.actual$mean) # Bare for at sikre, at kun 21 perioder forekastes
-
-plot(myforecasts.830345.actual) # Plot af tidsrækken med forecastede værdier og 95% confidence bands
-# Nærbillede af de forecastede værdier 
-plot(myforecasts.830345.actual,xlim=c(2020.8,2021.15))
-
-
 #######################################################################
-                        #PREWHITENING
+#PREWHITENING
 #######################################################################
 ############ testsæt ################################
-#Time series 
-salg.830345_ts <- ts(log(Salg_830345), frequency = 365, start =c(2019,1))
-prog.830345_ts <- ts(lProg_830345, frequency = 365, start =c(2019,1))
-
 #Split data til train og test sæt. Vi fjerner de første, da prognosen er dårlig.
-salg.830345_train <- window(salg.830345_ts,start=c(2020,25), end=c(2020,365))
-salg.830345_test <- window(salg.830345_ts, start=c(2021,0))
+salg.830345_train <- window(salg.830345_ts,start=c(2020,25), end=c(2020,365));salg.830345_train
+salg.830345_test <- window(salg.830345_ts, start=c(2021,0));salg.830345_test
 
-prog.830345_train <- window(prog.830345_ts,start=c(2020,25), end=c(2020,365))
-prog.830345_test <- window(prog.830345_ts, start=c(2021,0))
+prog.830345_train <- window(prog.830345_ts,start=c(2020,25), end=c(2020,365));prog.830345_train
+prog.830345_test <- window(prog.830345_ts, start=c(2021,0));prog.830345_test
 ########################################################
 
 ########## Tjek CCF ####################################
@@ -106,8 +81,7 @@ ccf2(as.vector(salg.830345_train),as.vector(prog.830345_train))
 #################### Prewhitening #######################
 #Først skal input-tidsrækken mean korregeres:
 new.prog.830345 = prog.830345_train - mean(prog.830345_train)
-
-#Herefter bestemmes en arima for input-tidsrækken:
+# En arima for input-tidsrækken:
 input.model.830345 = auto.arima(new.prog.830345, trace=TRUE);
 input.model.830345 #(2,0,0)
 #Modeltjek
@@ -119,26 +93,57 @@ checkresiduals(input.model.830345)
 ar1.830345 =-input.model.830345$coef[1]; ar1.830345
 ar2.830345 =-input.model.830345$coef[2]; ar2.830345
 
-#Man prewhitener ved at filtrerer - først prewhitnes output serien
-pw.salg.830345 = stats::filter(salg.830345_train,filter = c(1,ar1.830345,ar2.830345),
-                               #method = "recursive",
-                               sides=1)
-pw.salg.830345 = pw.salg.830345[3:341] #pre-whitened salg
+#CCF ved brug af prewhiten funktionen. Den er anderledes end den vi finder ved at prewhitene vha filter funktionen
+prewhiten(new.prog.830345,salg.830345_train,x.model = input.model.830345)
+#The CCF indicates that the prognosis at lag 0 is relevant
 
-#Prewhitend prognose burde være residualerne af modellen, så
-pw.prog.830345 =input.model.830345$residuals; pw.prog.830345
-#Som burde være det samme, som hvis man filtrerer
-filt.prog.830345 = stats::filter(new.prog.830345,filter=c(1,ar1.830345,ar2.830345),
-                                 #method=c("recursive"),
-                                 sides=1)
-filt.prog.830345 = filt.prog.830345[3:341] #De første inputs er NA
-#Jeps, man får det samme ved at filtrerer, som når man tager residualerne. 
+#Lagged regression model
+model = lm(salg.830345_train~new.prog.830345)
+summary (model)# R^2=0.2477 Modellen er ikke god
+acf2(residuals(model)) # ACF for residualerne ligner en AR(1) process
 
-############ Tjek prewhitened CCF
-ccf2(as.vector(pw.salg.830345),as.vector(filt.prog.830345))
-#Denne CCF er en del pænere, men stadig ideel
 
-###############################################################
-                    #FORECASTING
-###############################################################
-#HVORDAN KOMMER VI VIDERE MED AT FORECASE UD FRA DEN PREWHITENEDE DATA?
+### Lineære regressionsmodeller med autoregressive fejl ###
+#Kilde:  https://online.stat.psu.edu/stat510/lesson/8/8.1
+
+#Determine regression models
+model = lm(salg.830345_train~new.prog.830345) # Bemærk samme model som lagged  ved regression
+summary (model)# R^2=0.2477 Modellen er ikke god
+acf2(residuals(model)) # ACF for residualerne ligner en AR(1) process
+rm= residuals(model)
+AR.resid = auto.arima(rm);AR.resid # Bestem AR(1) process for residualerne
+#Check modellen for residualerne
+tsdiag(AR.resid)
+checkresiduals(AR.resid) # Overordnet set er modellen acceptabel
+#Adjust the model using Cochrane-Orcutt
+xl = ts.intersect(new.prog.830345, stats::lag(new.prog.830345,-1)) # Konstruer matrix med x og lag 1 x som elementer
+xnew=xl[,1] - AR.resid$coef*xl[,2] # Konstruer x variabel for justeret regression
+yl = ts.intersect(salg.830345_train,stats::lag(salg.830345_train,-1)) # Konstruer matrix med y og lag 1 y som elementer
+ynew=yl[,1]-AR.resid$coef*yl[,2] # Konstruer y variabel for justeret regression
+
+Adj.model = lm(ynew~xnew) # Justeret regression
+summary(Adj.model)
+acf2(residuals(Adj.model))
+install.packages("orcutt")
+library(orcutt)
+cochrane.orcutt(model)
+summary(cochrane.orcutt(model))#Modellen er stadig elendig
+# A potential problem with the Cohrane-Orcutt procedure is that the residual sum of squares is not always minimized
+#Det er nok derfor denne model ofte har lavere R^2
+
+# Maximum likelihood tilgang
+trend = time(salg.830345_train)
+regmodel=lm(salg.830345_train~trend+new.prog.830345) # ordinær regression.
+dtx = residuals(lm (new.prog.830345~time(new.prog.830345)))
+regmodel= lm(salg.830345_train~trend+dtx) # ordinær regression med detrended x, dtx.
+summary(regmodel) 
+acf2(resid(regmodel)) # ACF og PACF af residualerne
+ARIMA.regmodel = auto.arima(resid(regmodel)); ARIMA.regmodel
+
+adjreg = sarima (salg.830345_train, 1,0,0, xreg=cbind(trend, dtx)) # Justeret regression med AR(1) residualer
+adjreg # Resultater af justeret regression.
+acf2(as.vector(resid(adjreg$fit)))# ACF for residualerne ligner hvid støj
+
+#y_t=301.3316-0.1465*t+0.5458*dtx+e_t, hvor e_t=0.3368*e_{t-1}+w_t
+#Ovenstående er modellen opstillet på samme måde som eksempel 8-2 fra kilden
+#Men hvordan kommer man så videre med den???
