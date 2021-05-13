@@ -1,0 +1,172 @@
+library(forecast)
+library(readxl)
+library("TSA")
+library(dplyr)
+library("lubridate")
+library("imputeTS")
+library('astsa')
+library('zoo')
+library("aTSA")
+library(tseries)
+
+################################################################################
+#                             INDLÆS DATA
+################################################################################
+Ugentlig_data <- read_excel("C:/Users/nanna/OneDrive/Skrivebord/6. semester/Projekt/Data/Ugentlig_forecast.xlsx", 
+                            sheet = "Data")
+names(Ugentlig_data)[1] <- "Forretningsomraade"
+names(Ugentlig_data)[2]<- "PrognosekundeNavn"
+names(Ugentlig_data)[3] <- "ProduktgruppeNavn"
+names(Ugentlig_data)[4] <- "VaregruppeNavn"
+names(Ugentlig_data)[5] <- "Teknisk_Klasse"
+names(Ugentlig_data)[6] <- "Koel_Frost"
+names(Ugentlig_data)[7] <- "Sortiment"
+names(Ugentlig_data)[8] <- "Varenr"
+names(Ugentlig_data)[9] <- "Varenavn"
+names(Ugentlig_data)[10] <- "Week"
+names(Ugentlig_data)[11] <- "Month"
+names(Ugentlig_data)[12] <- "Year"
+names(Ugentlig_data)[13] <- "SalgKg"
+names(Ugentlig_data)[14] <- "xlFC_Total_kg"
+
+################################################################################
+#                         HENT COOP BRYSTPRODUKT
+################################################################################
+Coop.bryst <- Ugentlig_data %>% filter(PrognosekundeNavn == "Coop Danmark", 
+                                       VaregruppeNavn == "Brystprodukter",
+                                       Koel_Frost=="Køl")
+#Coop.bryst <- Coop.bryst[order(Coop.bryst$PrognosekundeNavn,Coop.bryst$Year,Coop.bryst$Week),]
+Coop.bryst <- Coop.bryst[order(Coop.bryst$Year,Coop.bryst$Month,Coop.bryst$Week),]
+Coop.bryst<- aggregate(x = Coop.bryst[c("SalgKg", "xlFC_Total_kg")],
+                       by = Coop.bryst[c("Month","Week", "Year")],
+                       sum)
+Coop.bryst$Year[(Coop.bryst$Week==1) & (Coop.bryst$Month == "dec")] <-Coop.bryst$Year+1
+Coop.bryst$Month[(Coop.bryst$Week==1) & (Coop.bryst$Month == "dec")] <-"jan"
+Coop.bryst$Year[(Coop.bryst$Week==53) & (Coop.bryst$Month == "jan")] <-Coop.bryst$Year
+Coop.bryst$Month[(Coop.bryst$Week==53) & (Coop.bryst$Month == "jan")] <-"dec"
+Coop.bryst<- aggregate(x = Coop.bryst[c("SalgKg", "xlFC_Total_kg")],
+                       by = Coop.bryst[c("Week", "Year")],
+                       sum)
+
+#Salg
+Salg.coop.bryst <- ts(Coop.bryst$SalgKg, frequency = 52, start = c(2019, 1)); 
+Salg.coop.bryst <- na.interpolation(Salg.coop.bryst) #Erstatter NA med gennemsnit af værdien før og efter.
+lsalg.coop.bryst <- ts(log(Salg.coop.bryst), frequency = 52,start=c(2019,1))
+
+#Prognose
+Prog.coop.bryst <-ts(Coop.bryst$xlFC_Total_kg, frequency = 52, start = c(2019, 1)) #Alm. prognose
+lprog.coop.bryst <- ts(log(Prog.coop.bryst),frequency = 52, start = c(2019, 1))
+
+################################################################################
+#                     INTERVENTION OG OUTLIERS
+################################################################################
+# Først bestemmes en arima for pre interventionsperioden, og om man skal tage log.
+#Definer perioderne
+pre.int.salg.bryst = window(Salg.coop.bryst, end=c(2020,5))
+l.pre.int.salg.bryst = window(lsalg.coop.bryst, end=c(2020,5))
+d.l.pre.int.salg.bryst = diff(l.pre.int.salg.bryst)
+#Plots
+plot.ts(cbind("x_t"=pre.int.salg.bryst, 
+              "log(x_t)"=l.pre.int.salg.bryst, 
+              "delta log(x_t)"=d.l.pre.int.salg.bryst), 
+        yax.flip=T,
+        main="Actual sale of chickenbreast to Coop"))
+
+#Arima for salg
+pre.model.salg.bryst = auto.arima(pre.int.salg.bryst, ic="bic"); pre.model.salg.bryst
+tsdiag(pre.model.salg.bryst)
+
+l.pre.model.salg.bryst = auto.arima(l.pre.int.salg.bryst, ic="aicc"); l.pre.model.salg.bryst
+tsdiag(l.pre.model.salg.bryst)
+
+d.l.pre.model.salg.bryst = auto.arima(d.l.pre.int.salg.bryst, ic="bic"); 
+d.l.pre.model.salg.bryst
+tsdiag(d.l.pre.model.salg.bryst)
+
+#Prognose for pre perioden
+pre.int.prog.bryst = window(Prog.coop.bryst, end=c(2020,5))
+l.pre.int.prog.bryst = window(lprog.coop.bryst, end=c(2020,5))
+d.l.pre.int.prog.bryst = diff(l.pre.int.salg.bryst)
+plot.ts(cbind("z_t" =pre.int.prog.bryst, 
+              "log(z_t)"=l.pre.int.prog.bryst, 
+              "delta log(z_t)"=d.l.pre.int.prog.bryst), 
+        yax.flip=T,
+        main="Prognosed sale of chickenbreast to Coop")
+
+################################################################################
+#                     VÆLG MODEL
+################################################################################
+m1 = lm(l.pre.int.salg.bryst~l.pre.int.prog.bryst);m1
+summary(m1)
+acf(residuals(m1))
+pacf(residuals(m1))
+#Shows auto correlation
+eacf(residuals(m1),ma.max=8,ar.max=5)
+auto.arima(residuals(m1))
+#Suggests a (1,0,0)-model. Therefore, fit a model with ARMA(1,0) errors.
+
+#Lav step funktion for at inkludere kontraktforhandling
+step.coop.bryst = c(rep(0,56),rep(1,53))
+
+m2 = arima(lsalg.coop.bryst,order=c(1,0,0),
+           xreg=data.frame(cbind(lprog.coop.bryst,step.coop.bryst))
+           )
+m2
+tsdiag(m2)
+detectAO(m2);detectIO(m2)
+
+reg.out = cbind(step.coop.bryst,
+                c(rep(0,87),1,rep(0,21)),
+                c(rep(0,89),1,rep(0,19)),
+                c(rep(0,3),1,rep(0,105)))
+
+m3 = arimax(lsalg.coop.bryst,
+               order=c(1,0,0),
+               xreg=data.frame(as.vector(lprog.coop.bryst),
+                               outliers=reg.out))
+m3
+detectAO(m3);detectIO(m3)
+tsdiag(m3)
+checkresiduals(m3)
+
+################################################################################
+#                             FORECAST PROGNOSE
+###############################################################################
+#For at kunne forecaste model m3 skal vi have forecast for vores xreg: 
+#Forecast step og outliers:
+for.step.coop.bryst = c(rep(1,21));
+for.out = c(rep(0,21))
+
+########################### FORECAST PROGNOSE
+#Post-intervention periode prognose
+post.int.prog.bryst = window(Prog.coop.bryst, start=c(2020,5))
+l.post.int.prog.bryst = window(lprog.coop.bryst, start=c(2020,5))
+
+#Vælg arima
+p.model.auto <- auto.arima(l.post.int.prog.bryst); tsdiag(p.model.auto) 
+p.model.auto #(2,0,0)
+#Residual tjek
+checkresiduals(p.model.auto)
+
+#Predict 
+for.prog <- predict(p.model.auto, n.ahead=21)$pred; for.prog
+
+#Dermed er vores nye xreg:
+for.xreg = cbind(for.prog,for.step.coop.bryst,for.out,for.out,for.out)
+
+################################################################################
+#                             FORECAST
+################################################################################
+p <- predict(m3, n.ahead=21, 
+             newxreg=data.frame(for.prog, outliers=cbind(for.step.coop.bryst,for.out,for.out,for.out)))
+p
+
+# display forecasts
+plot(cbind(lsalg.coop.bryst,p$pred), plot.type = "single", ylab = "", type = "n",ylim=c(9,12.3))
+lines(lsalg.coop.bryst)
+lines(p$pred, type = "l", col = "blue")
+lines(p$pred + 1.96 *p$se, type = "l", col = "red", lty = 2)  
+lines(p$pred - 1.96 * p$se, type = "l", col = "red", lty = 2)  
+legend("topleft", legend = c("observed data", 
+                             "forecasts", "95% confidence bands"), lty = c(1,1,2,2), 
+       col = c("black", "blue", "red", "red"), bty = "n")
