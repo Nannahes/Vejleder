@@ -1,0 +1,303 @@
+#### Packages ####
+library("imputeTS")
+library('astsa')
+library('readxl')
+library('dplyr')
+library('forecast')
+library('TSA')
+library('dplyr')
+library('zoo')
+library("orcutt")
+library(nlme)
+
+##########################################################
+#               Daglig data
+##########################################################
+Daglig_data <- read_excel("Data_dag.xlsx", sheet = "Data", skip = 1)
+
+
+names(Daglig_data)[1] <- "Vare"
+names(Daglig_data)[2] <- "Varenavn"
+names(Daglig_data)[3] <- "Sortiment"
+names(Daglig_data)[4] <- "Varegruppe_Besk"
+names(Daglig_data)[5] <- "Kunde"
+names(Daglig_data)[6] <- "Dato"
+names(Daglig_data)[7] <- "ProgKolliKamp"
+names(Daglig_data)[8] <- "ProgKolliEjKamp"
+names(Daglig_data)[9] <- "SalgKolli"
+
+# Hent dataen (830345 Netto DK)
+Daglig_830345 <- Daglig_data %>% filter(Kunde == "NettoDK",Vare=="830345")
+Daglig_830345 <- Daglig_830345[order(as.Date(Daglig_830345$Dato, format="%Y/%m/%d")),]
+
+#Salgvektorer
+Salg_830345 <-  ts(Daglig_830345$SalgKolli, frequency = 365, start = c(2019, 1)); 
+Salg_830345 <- na_interpolation(Salg_830345) #Erstatter NA med gennemsnit af værdien før og efter.
+
+lSalg_830345 <- log(Salg_830345)
+lSalg_830345 <- na_interpolation(lSalg_830345)
+
+#Plot salg 
+plot.ts(Salg_830345, type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+plot.ts(log(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+acf2(as.vector(log(Salg_830345)))
+plot.ts(diff(Salg_830345), type='l', main = "830345 NettoDK", ylab = "Salg", xlab= "Dato")
+#Dato vektor
+dato.830345 <- Daglig_830345$Dato; dato.830345
+
+#Prognose
+Prog_ejkamp_830345 <-ts(Daglig_830345$ProgKolliEjKamp, frequency = 365, start = c(2019, 1)) #Alm. prognose
+Prog_kamp_830345 <- ts(Daglig_830345$ProgKolliKamp, frequency = 365, start = c(2019, 1)) #Prognose kamp.
+Prog_kamp_830345 <- na_replace(Prog_kamp_830345,0)
+Prog_830345 <- Prog_ejkamp_830345 + Prog_kamp_830345;Prog_830345 #Det sidste 0 forecast i starten af tidsrækken forekommer ved indeks 390
+lProg_830345 <- log(Prog_830345)
+repinf = which(lProg_830345==-Inf);repinf
+lProg_830345 <- replace(lProg_830345,repinf, c(rep(NaN, length(repinf))))
+lProg_830345 <- na_interpolation(lProg_830345)
+
+
+#### ADL for daglig data ####
+# Definer Salg og Prognose for den kortere periode
+salg.830345_ts <- window(lSalg_830345)
+prog.830345_ts <- window(lProg_830345)
+
+#salg.830345_train
+y = salg.830345_ts[1:600]
+x = prog.830345_ts[1:600]
+
+y.test = salg.830345_ts[600:762]
+x.test = prog.830345_ts[600:762]
+
+y.lag = lagit(y,c(1:20));
+x.lag = lagit(x,c(1:20))
+
+ccf(x,y)
+prewhiten(x,y)
+
+#Opstilling af modeller
+b1 = lm(y~x+x.lag[,1]+x.lag[,2]+x.lag[,3]+x.lag[,4]+x.lag[,5]+x.lag[,6]+
+          x.lag[,7]+x.lag[,8]+x.lag[,9]+x.lag[,10]+x.lag[,11]+x.lag[,12]+x.lag[,13]+
+          x.lag[,14]+x.lag[,15]+x.lag[,16]+x.lag[,17]+x.lag[,18]+x.lag[,19]+x.lag[,20]+
+          y.lag[,2]+y.lag[,3]+y.lag[,4]+y.lag[,5]+y.lag[,6]+y.lag[,7]+y.lag[,8]+
+          y.lag[,9]+y.lag[,10]+y.lag[,11]+y.lag[,12]+y.lag[,13]+y.lag[,14]+y.lag[,15]+
+          y.lag[,16]+y.lag[,17]+y.lag[,18]+y.lag[,19]+y.lag[,20]
+)
+summary(b1) #28.06 r squared
+checkresiduals(b1)
+
+b2 = lm(y~x+x.lag[,3]+x.lag[,8]+x.lag[,18])
+summary(b2) #19.58 r squared
+checkresiduals(b2)
+
+b3 = lm(y~x+x.lag[,3])
+summary(b3) #15.7r squared
+checkresiduals(b3)
+
+
+#predict
+#Predict the old data
+p1 = predict(b1, h=162)
+p2 = predict(b2, h=162)
+p3 = predict(b3, h=162)
+
+p1=ts(p1, start = c(600), end = c(762))
+p2=ts(p2, start = c(600), end = c(762))
+p3=ts(p3, start = c(600), end = c(762))
+
+plot(lSalg_830345[1:762], type="l")
+lines(p1, col="green")
+lines(p2, col="gold")
+lines(p3, col="red")
+
+plot(lSalg_830345[1:762], type="l",xlim=c(600,762))
+lines(p1, col="green")
+lines(p2, col="gold")
+lines(p3, col="red")
+
+
+# for loop der predicter 1 værdi frem af gangen, dette strækker sig over test-sættet
+n=lagit(y[1:600],c(1:600));n
+
+g=c(rep(NA,165))
+for (i in c(600:765)) {
+  n=lagit(prog.830345_ts[1:765],c(1:765));
+  m=lagit(salg.830345_ts[1:765],c(1:765))
+  g[i] = n[i-0]+n[i-3]-m[i-1]
+}
+g
+
+# Plot der viser resultatet af ovenstående for loop prediktion
+par(mfrow=c(1,1))
+plot(salg.830345_ts[1:765],type="l", ylim=c(3.9,7.5));
+lines(g,col=2)
+
+# Zoomet ind
+par(mfrow=c(1,1))
+plot(salg.830345_ts[1:765],type="l", xlim = c(590,765), ylim=c(3.9,7.5));
+lines(g,col=2)
+
+
+################################################################################
+#                             Ugentlig data 
+################################################################################
+
+#pakker
+library(readxl)
+library(dplyr)
+library('astsa')
+library('forecast')
+
+#Hent dataen
+Ugentlig_data <- read_excel("Data_uge.xlsx", sheet = "Data")
+
+names(Ugentlig_data)[1] <- "Forretningsomraade"
+names(Ugentlig_data)[2]<- "PrognosekundeNavn"
+names(Ugentlig_data)[3] <- "ProduktgruppeNavn"
+names(Ugentlig_data)[4] <- "VaregruppeNavn"
+names(Ugentlig_data)[5] <- "Teknisk_Klasse"
+names(Ugentlig_data)[6] <- "Koel_Frost"
+names(Ugentlig_data)[7] <- "Sortiment"
+names(Ugentlig_data)[8] <- "Varenr"
+names(Ugentlig_data)[9] <- "Varenavn"
+names(Ugentlig_data)[10] <- "Week"
+names(Ugentlig_data)[11] <- "Month"
+names(Ugentlig_data)[12] <- "Year"
+names(Ugentlig_data)[13] <- "SalgKg"
+names(Ugentlig_data)[14] <- "xlFC_Total_kg"
+
+
+
+# Udvælg hakkekød fra Coop
+Coop.hk <- Ugentlig_data %>% filter(PrognosekundeNavn == "Coop Danmark", 
+                                       VaregruppeNavn == "Hakkekødsprodukter",
+                                       Koel_Frost=="Køl")
+#Coop.bryst <- Coop.bryst[order(Coop.bryst$PrognosekundeNavn,Coop.bryst$Year,Coop.bryst$Week),]
+Coop.hk <- Coop.hk[order(Coop.hk$Year,Coop.hk$Month,Coop.hk$Week),]
+Coop.hk<- aggregate(x = Coop.hk[c("SalgKg", "xlFC_Total_kg")],
+                       by = Coop.hk[c("Month","Week", "Year")],
+                       sum)
+Coop.hk$Year[(Coop.hk$Week==1) & (Coop.hk$Month == "dec")] <-Coop.hk$Year+1
+Coop.hk$Month[(Coop.hk$Week==1) & (Coop.hk$Month == "dec")] <-"jan"
+Coop.hk$Year[(Coop.hk$Week==53) & (Coop.hk$Month == "jan")] <-Coop.hk$Year
+Coop.hk$Month[(Coop.hk$Week==53) & (Coop.hk$Month == "jan")] <-"dec"
+Coop.hk<- aggregate(x = Coop.hk[c("SalgKg", "xlFC_Total_kg")],
+                       by = Coop.hk[c("Week", "Year")],
+                       sum)
+
+#Salgvektorer
+Salg.coop.hk <- ts(Coop.hk$SalgKg, frequency = 52, start = c(2019, 1)); 
+Salg.coop.hk <- na_interpolation(Salg.coop.hk) #Erstatter NA med gennemsnit af værdien før og efter.
+lsalg.coop.hk <- ts(log(Salg.coop.hk), frequency = 52,start=c(2019,1))
+
+#Prognose
+Prog.coop.hk <-ts(Coop.hk$xlFC_Total_kg, frequency = 52, start = c(2019, 1)) #Alm. prognose
+lprog.coop.hk <- ts(log(Prog.coop.hk),frequency = 52, start = c(2019, 1))
+
+
+
+
+###### Coop hk produkter ####
+
+y =Salg.coop.hk[1:100]
+x =Prog.coop.hk[1:100]
+
+y.lag=lagit(y,c(1:30))
+x.lag=lagit(x,c(1:30))
+
+#Opstilling af modeller
+b1 = lm(y~x.lag[,1]+x.lag[,2]+x.lag[,3]+x.lag[,4]+x.lag[,5]+x.lag[,6]+
+          x.lag[,7]+x.lag[,8]+x.lag[,9]+x.lag[,10]+x.lag[,11]+x.lag[,12]+x.lag[,13]+
+          x.lag[,14]+x.lag[,15]+x.lag[,16]+x.lag[,17]+x.lag[,18]+x.lag[,19]+x.lag[,20]+
+          y.lag[,2]+y.lag[,3]+y.lag[,4]+y.lag[,5]+y.lag[,6]+y.lag[,7]+y.lag[,8]+
+          y.lag[,9]+y.lag[,10]+y.lag[,11]+y.lag[,12]+y.lag[,13]+y.lag[,14]+y.lag[,15]+
+          y.lag[,16]+y.lag[,17]+y.lag[,18]+y.lag[,19]+y.lag[,20]
+)
+summary(b1) #94.27 r squared
+checkresiduals(b1)
+
+b2 = lm(y~x.lag[,1]+x.lag[,4]+x.lag[,6]+x.lag[,7]+
+          x.lag[,14]+x.lag[,17]+
+          y.lag[,2]+y.lag[,8]+y.lag[,14]+y.lag[,17]
+)
+summary(b2) #94.27 r squared
+
+b3 = lm(y~x.lag[,1]+x.lag[,6]+x.lag[,7]+
+          x.lag[,14]+x.lag[,17]+y.lag[,8]+y.lag[,14]
+)
+summary(b3) #94.27 r squared
+
+b4 = lm(y~x.lag[,1]+x.lag[,6]+x.lag[,17]+y.lag[,8]+y.lag[,14]
+)
+summary(b4) #94.27 r squared
+
+b5 = lm(y~x.lag[,1]+x.lag[,6]+y.lag[,8]
+)
+summary(b5) 
+
+
+# Reproducing your data frame
+dfram <- data.frame(Salg.coop.hk[1:100]); dfram
+length(Salg.coop.hk)
+
+# Predict the old data
+p.old.5 <- predict(object = b5, data = dfram, interval = "confidence");
+
+ts.plot(p.old.5,col=c(1,2,2))
+lines(y[8:100],lty=2,col=3)
+
+
+# for loop der predicter 1 værdi frem af gangen
+n=lagit(Prog.coop.hk[1:108],c(1:108));n
+
+g=c(rep(NA,8))
+for (i in c(101:108)) {
+  n=lagit(Prog.coop.hk[1:108],c(1:108));
+  m=lagit(Salg.coop.hk[1:108],c(1:108))
+  g[i] = n[i-1]+n[i-6]-m[i-8]
+}
+g
+
+# Plot der viser resultatet af ovenstående for loop prediktion
+par(mfrow=c(1,1))
+plot(Salg.coop.hk[1:108],type="l");
+lines(g,col=2)
+
+
+######### Samme som ovenfor blot med afkortet datasæt
+
+lProg.coop.hk = log(Prog.coop.hk)
+lsalg.coop.hk = log(Salg.coop.hk)
+
+y =lsalg.coop.hk[55:100]
+x =lprog.coop.hk[55:100]
+plot(y,type="l")
+
+y.lag=lagit(y,c(1:30))
+x.lag=lagit(x,c(1:30))
+
+#Opstilling af modeller
+b1 = lm(y~x.lag[,1]+x.lag[,2]+x.lag[,3]+x.lag[,4]+x.lag[,5]+x.lag[,6]+
+          x.lag[,7]+x.lag[,8]+x.lag[,9]+x.lag[,10]+x.lag[,11]+x.lag[,12]+x.lag[,13]+
+          x.lag[,14]+x.lag[,15]+
+          y.lag[,2]+y.lag[,3]+y.lag[,4]+y.lag[,5]+y.lag[,6]+y.lag[,7]+y.lag[,8]+
+          y.lag[,9]+y.lag[,10]+y.lag[,11]+y.lag[,12]+y.lag[,13]+y.lag[,14]+y.lag[,15]
+)
+summary(b1) #94.27 r squared
+checkresiduals(b1)
+
+b2 = lm(y~x.lag[,1])
+summary(b2) #94.27 r squared
+checkresiduals(b2)
+
+# for loop der predicter 1 værdi frem af gangen
+g=c(rep(NA,8))
+for (i in c(101:108)) {
+  n=lagit(lProg.coop.hk[1:108],c(1:108));
+  g[i] = n[i-1]
+}
+g
+
+# Plot der viser resultatet af ovenstående for loop prediktion
+par(mfrow=c(1,1))
+plot(lsalg.coop.hk[1:108],type="l");
+lines(g,col=2)
